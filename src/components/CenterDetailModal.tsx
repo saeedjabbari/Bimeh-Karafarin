@@ -201,7 +201,7 @@ export const CenterDetailModal: React.FC<CenterDetailModalProps> = ({
                   <Hash className="w-3.5 h-3.5" />
                   شناسه ملی / کد مرکز:
                 </span>
-                <span className="font-mono font-bold text-slate-800 tabular-nums">
+                <span className="font-bold text-slate-800 tabular-nums">
                   {toFa(center.id)}
                 </span>
               </div>

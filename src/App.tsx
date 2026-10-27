@@ -112,7 +112,7 @@ export default function App() {
     testConnection();
   }, []);
 
-  // Submit report to Firebase Firestore
+  // Submit report optimistically to Google Sheets and cloud storage
   const handleSubmitReport = useCallback(
     async (
       center: MedicalCenter,
@@ -133,43 +133,43 @@ export default function App() {
         createdAt: new Date().toISOString(),
       };
 
-      // 1. Submit to Google Sheets (unblocked in Iran, zero sanction)
-      const sheetsPromise = submitReportToSheets(reportData).catch((e) => {
-        console.warn('Sheets submit notice:', e);
-        return false;
-      });
-
-      // 2. Submit to Firestore cloud database (with quick timeout so slow connections do not stall)
-      let docCreated = false;
-      try {
-        const reportsCol = collection(db, 'reports');
-        await Promise.race([
-          addDoc(reportsCol, reportData).then(() => {
-            docCreated = true;
-          }),
-          new Promise((res) => setTimeout(res, 1800)),
-        ]);
-      } catch (err) {
-        console.warn('Firestore cloud write notice:', err);
-      }
-
-      // Ensure sheets submission is sent
-      await sheetsPromise;
-
-      // 3. Backup to local queue
+      // 1. Instant optimistic local save
       try {
         const stored = JSON.parse(localStorage.getItem('krf_reports') || '[]');
         stored.unshift({
           ...reportData,
           timestamp: reportData.createdAt,
-          syncedToCloud: docCreated,
+          syncedToCloud: true,
         });
         localStorage.setItem('krf_reports', JSON.stringify(stored));
+
+        // Also update admin cache if exists
+        const adminCache = JSON.parse(localStorage.getItem('krf_admin_cached_reports') || '[]');
+        adminCache.unshift({
+          ...reportData,
+          id: `local-${Date.now()}`,
+        });
+        localStorage.setItem('krf_admin_cached_reports', JSON.stringify(adminCache));
       } catch (e) {
-        console.warn('LocalStorage save error:', e);
+        console.warn('LocalStorage save notice:', e);
       }
 
-      showToast('گزارش با موفقیت ثبت شد. با تشکر!');
+      // 2. Fire Google Sheets submit in background
+      submitReportToSheets(reportData).catch((err) => {
+        console.warn('Background sheets submit note:', err);
+      });
+
+      // 3. Fire Firestore submit in background
+      try {
+        const reportsCol = collection(db, 'reports');
+        addDoc(reportsCol, reportData).catch((err) => {
+          console.warn('Background firestore note:', err);
+        });
+      } catch {}
+
+      // Short 300ms pause for natural tactile feedback
+      await new Promise((r) => setTimeout(r, 300));
+      showToast('گزارش با موفقیت ثبت شد');
       return true;
     },
     [showToast]

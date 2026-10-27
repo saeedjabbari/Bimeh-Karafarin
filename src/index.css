@@ -5,6 +5,10 @@
     --font-vazir: 'Vazirmatn', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   }
 
+  *, *::before, *::after {
+    font-family: var(--font-vazir);
+  }
+
   html {
     font-family: var(--font-vazir);
     -webkit-text-size-adjust: 100%;
@@ -17,7 +21,7 @@
     padding-top: env(safe-area-inset-top, 0px);
   }
 
-  input, button, select, textarea {
+  input, button, select, textarea, table, th, td, code, pre, kbd, samp {
     font-family: inherit;
   }
 }

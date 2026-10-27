@@ -71,12 +71,18 @@ export async function fetchReportsFromSheets(): Promise<MedicalCenterReport[]> {
   if (!webhookUrl) return [];
 
   try {
-    const res = await fetch(webhookUrl, {
+    const fetchUrl = `${webhookUrl}${webhookUrl.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 7000);
+
+    const res = await fetch(fetchUrl, {
       method: 'GET',
+      signal: controller.signal,
       headers: {
         Accept: 'application/json',
       },
     });
+    clearTimeout(timeoutId);
 
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
@@ -98,7 +104,7 @@ export async function fetchReportsFromSheets(): Promise<MedicalCenterReport[]> {
       createdAt: item.createdAt || new Date().toISOString(),
     }));
   } catch (err) {
-    console.error('Error fetching reports from Google Sheets:', err);
+    console.warn('Error fetching reports from Google Sheets:', err);
     throw err;
   }
 }

@@ -634,7 +634,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 مدیریت گزارش‌های تغییر مشخصات مراکز
               </h1>
               <span className="text-[11px] font-bold flex items-center gap-1.5">
-                {activeSyncSource === 'sheets' ? (
+                {isRefreshing ? (
+                  <span className="text-[#0a4c9a] flex items-center gap-1.5 font-bold">
+                    <RefreshCw className="w-3 h-3 animate-spin text-[#0a4c9a]" />
+                    <span>در حال دریافت تازه‌ترین گزارش‌ها از گوگل شیت...</span>
+                  </span>
+                ) : activeSyncSource === 'sheets' ? (
                   <span className="text-emerald-600 flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                     متصل به Google Sheets (همگام‌سازی زنده بین تمام دستگاه‌ها)
@@ -1362,7 +1367,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   onChange={(e) => setSheetsUrlInput(e.target.value)}
                   placeholder="https://script.google.com/macros/s/AKfycbx.../exec"
                   dir="ltr"
-                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 outline-none focus:bg-white focus:border-emerald-600 font-mono text-left"
+                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 outline-none focus:bg-white focus:border-emerald-600 text-left"
                 />
                 <Link className="w-4 h-4 text-slate-400 absolute right-3 top-3.5 pointer-events-none" />
               </div>

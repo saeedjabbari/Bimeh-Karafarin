@@ -44,28 +44,20 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     setIsSubmitting(true);
 
     try {
-      const submitPromise = Promise.resolve(
-        onSubmitReport(
-          center,
-          reason,
-          currentReasonObj.label,
-          details.trim(),
-          reporterContact.trim()
-        )
+      await onSubmitReport(
+        center,
+        reason,
+        currentReasonObj.label,
+        details.trim(),
+        reporterContact.trim()
       );
-
-      const timeoutPromise = new Promise<boolean>((resolve) =>
-        setTimeout(() => resolve(true), 2500)
-      );
-
-      await Promise.race([submitPromise, timeoutPromise]);
 
       setSubmitted(true);
       setTimeout(() => {
         setSubmitted(false);
         setIsSubmitting(false);
         onClose();
-      }, 1600);
+      }, 850);
     } catch (err) {
       console.warn('Report submission completed with notice:', err);
       setSubmitted(true);
@@ -73,7 +65,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         setSubmitted(false);
         setIsSubmitting(false);
         onClose();
-      }, 1600);
+      }, 850);
     }
   };
 
@@ -106,7 +98,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto animate-bounce" />
             <h4 className="text-sm font-bold text-slate-900">گزارش شما با موفقیت ثبت شد</h4>
             <p className="text-xs text-slate-500 leading-relaxed max-w-xs mx-auto">
-              این اطلاعات در پایگاه داده ابری ثبت شد و توسط کارشناسان بیمه کارآفرین شعبه ارومیه بررسی و اصلاح خواهد شد.
+              با تشکر از همکاری شما، اطلاعات پس از بررسی اعمال خواهد شد.
             </p>
           </div>
         ) : (
@@ -189,7 +181,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 ) : (
                   <>
                     <Send className="w-3.5 h-3.5" />
-                    <span>ثبت در سرور ابری</span>
+                    <span>ثبت</span>
                   </>
                 )}
               </button>
