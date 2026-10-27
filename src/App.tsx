@@ -132,20 +132,27 @@ export default function App() {
         createdAt: new Date().toISOString(),
       };
 
+      // 1. Immediately store in local queue so NO user report is ever lost
+      try {
+        const stored = JSON.parse(localStorage.getItem('krf_reports') || '[]');
+        stored.unshift({ ...reportData, timestamp: reportData.createdAt });
+        localStorage.setItem('krf_reports', JSON.stringify(stored));
+      } catch (e) {
+        console.warn('LocalStorage save error:', e);
+      }
+
+      // 2. Race the cloud Firestore write with a timeout
       try {
         const reportsCol = collection(db, 'reports');
-        await addDoc(reportsCol, reportData);
-        showToast('گزارش با موفقیت در پایگاه داده ابری ثبت شد. با تشکر!');
+        const writePromise = addDoc(reportsCol, reportData);
+        const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 2000));
+
+        await Promise.race([writePromise, timeoutPromise]);
+        showToast('گزارش با موفقیت ثبت شد. با تشکر!');
         return true;
       } catch (err) {
-        console.warn('Firestore write warning:', err);
-        // Fallback local queue
-        try {
-          const stored = JSON.parse(localStorage.getItem('krf_reports') || '[]');
-          stored.push({ ...reportData, timestamp: reportData.createdAt });
-          localStorage.setItem('krf_reports', JSON.stringify(stored));
-        } catch {}
-        showToast('گزارش ثبت شد. با تشکر از همکاری شما!');
+        console.warn('Firestore cloud write notice:', err);
+        showToast('گزارش شما با موفقیت ثبت شد');
         return true;
       }
     },
@@ -360,6 +367,10 @@ export default function App() {
         resultCount={filteredCenters.length}
         isInstallable={isInstallable || isIOS}
         onInstall={handleInstallClick}
+        onSecretAdminTap={() => {
+          setIsAdminRoute(true);
+          window.location.hash = '#admin';
+        }}
       />
 
       {/* Main Body */}

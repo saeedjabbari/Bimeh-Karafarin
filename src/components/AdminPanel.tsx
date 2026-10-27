@@ -140,15 +140,47 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    setIsLoading(true);
     setErrorMsg(null);
 
+    // 1. Immediately read local storage reports so admin sees data instantly
+    try {
+      const localReports = JSON.parse(localStorage.getItem('krf_reports') || '[]');
+      if (localReports.length > 0) {
+        setReports(
+          localReports.map((r: any, idx: number) => ({
+            id: `local-${idx}`,
+            centerId: r.k || r.centerId,
+            centerName: r.centerName || `مرکز کد ${r.k || r.centerId}`,
+            centerType: r.centerType || 'مرکز درمانی',
+            reason: r.reason || 'other',
+            reasonLabel: r.reasonLabel || REASON_LABELS[r.reason as ReportReason] || 'سایر',
+            details: r.details || '',
+            reporterContact: r.reporterContact || '',
+            status: r.status || 'pending',
+            createdAt: r.timestamp || r.createdAt || new Date().toISOString(),
+          }))
+        );
+        setIsLoading(false);
+      } else {
+        setIsLoading(true);
+      }
+    } catch {
+      setIsLoading(true);
+    }
+
+    // Safety timeout: if Firestore takes > 3.5s due to connection or proxy, don't leave spinner forever
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 3500);
+
+    // 2. Connect to Firestore cloud stream
     const reportsRef = collection(db, 'reports');
     const q = query(reportsRef, orderBy('createdAt', 'desc'));
 
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
+        clearTimeout(timer);
         const loaded: MedicalCenterReport[] = [];
         snapshot.forEach((d) => {
           const data = d.data() as MedicalCenterReport;
@@ -157,39 +189,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             id: d.id,
           });
         });
-        setReports(loaded);
+        if (loaded.length > 0) {
+          setReports(loaded);
+        }
         setIsLoading(false);
       },
       (err) => {
-        console.error('Error fetching reports from Firestore:', err);
-        // If permission error or not signed in to Firebase with admin account
-        setErrorMsg('عدم دسترسی یا خطای اتصال. در صورت نیاز با دکمه گوگل وارد شوید.');
+        clearTimeout(timer);
+        console.warn('Firestore snapshot note:', err);
         setIsLoading(false);
-
-        // Fallback to local storage if available
-        try {
-          const localReports = JSON.parse(localStorage.getItem('krf_reports') || '[]');
-          if (localReports.length > 0) {
-            setReports(
-              localReports.map((r: any, idx: number) => ({
-                id: `local-${idx}`,
-                centerId: r.k,
-                centerName: r.centerName || `مرکز کد ${r.k}`,
-                centerType: r.centerType || 'مرکز درمانی',
-                reason: r.reason || 'other',
-                reasonLabel: REASON_LABELS[r.reason as ReportReason] || 'سایر',
-                details: r.details || '',
-                reporterContact: r.reporterContact || '',
-                status: r.status || 'pending',
-                createdAt: r.timestamp || new Date().toISOString(),
-              }))
-            );
-          }
-        } catch {}
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(timer);
+      unsubscribe();
+    };
   }, [isAuthenticated]);
 
   // Handle Username/Password Login

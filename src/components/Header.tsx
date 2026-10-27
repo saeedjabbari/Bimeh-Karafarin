@@ -16,6 +16,7 @@ interface HeaderProps {
   resultCount: number;
   isInstallable: boolean;
   onInstall: () => void;
+  onSecretAdminTap?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -30,8 +31,23 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleNightShift,
   resultCount,
   isInstallable,
-  onInstall
+  onInstall,
+  onSecretAdminTap,
 }) => {
+  const [taps, setTaps] = React.useState(0);
+
+  const handleLogoTap = () => {
+    setTaps((prev) => {
+      const next = prev + 1;
+      if (next >= 4) {
+        onSecretAdminTap?.();
+        return 0;
+      }
+      return next;
+    });
+    setTimeout(() => setTaps(0), 1800);
+  };
+
   const categoryKeys = [
     'all',
     ...Object.keys(typeCounts).sort((a, b) => typeCounts[b] - typeCounts[a])
@@ -43,9 +59,14 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="max-w-4xl mx-auto px-4 pt-3 pb-3">
         <div className="flex items-center justify-between gap-3 mb-3">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-[#F15A31] flex items-center justify-center shrink-0 shadow-sm text-white font-bold text-xs">
+            <button
+              type="button"
+              onClick={handleLogoTap}
+              title="بیمه کارآفرین"
+              className="w-10 h-10 rounded-xl bg-[#F15A31] flex items-center justify-center shrink-0 shadow-sm text-white font-bold text-xs cursor-default active:scale-95 transition"
+            >
               <ShieldCheck className="w-6 h-6 text-white" />
-            </div>
+            </button>
             <div className="min-w-0">
               <h1 className="text-base font-extrabold tracking-tight truncate leading-tight">
                 مراکز درمانی طرف قرارداد کارآفرین
