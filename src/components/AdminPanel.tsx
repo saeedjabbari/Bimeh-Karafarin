@@ -14,6 +14,12 @@ import { db } from '../lib/firebase';
 import { MedicalCenterReport, ReportStatus, ReportReason } from '../types';
 import { formatPersianDate, toFa } from '../utils/persian';
 import {
+  getSheetsWebhookUrl,
+  setSheetsWebhookUrl,
+  fetchReportsFromSheets,
+  GOOGLE_APPS_SCRIPT_CODE,
+} from '../lib/sheets';
+import {
   ShieldCheck,
   Lock,
   UserCheck,
@@ -25,7 +31,6 @@ import {
   Trash2,
   RefreshCw,
   Search,
-  Filter,
   Phone,
   FileSpreadsheet,
   AlertTriangle,
@@ -40,6 +45,10 @@ import {
   List,
   Building2,
   AlertCircle,
+  Settings,
+  Link,
+  ExternalLink,
+  Code2,
 } from 'lucide-react';
 
 const ADMIN_STORAGE_KEY = 'krf_admin_logged_in';
@@ -109,7 +118,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onBackToApp,
   showToast,
 }) => {
-  // Authentication state (clean username & password)
+  // Authentication state
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return sessionStorage.getItem(ADMIN_STORAGE_KEY) === 'true';
   });
@@ -117,15 +126,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
 
-  // Password management modal
+  // Password & Settings Modals
   const [isChangePassOpen, setIsChangePassOpen] = useState(false);
   const [newPassInput, setNewPassInput] = useState('');
+  const [isSheetsModalOpen, setIsSheetsModalOpen] = useState(false);
+  const [sheetsUrlInput, setSheetsUrlInput] = useState<string>(() => getSheetsWebhookUrl());
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [isTestingSheets, setIsTestingSheets] = useState(false);
 
   // Data states
   const [reports, setReports] = useState<MedicalCenterReport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'offline'>('connecting');
+  const [activeSyncSource, setActiveSyncSource] = useState<'sheets' | 'firestore' | 'local'>('local');
 
   // View modes: 'grouped' (تجمیع بر اساس مرکز) or 'detailed' (تک‌تک سطرها)
   const [viewMode, setViewMode] = useState<'grouped' | 'detailed'>('grouped');
@@ -137,128 +150,122 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [reasonFilter, setReasonFilter] = useState<string>('all');
   const [copiedForSheets, setCopiedForSheets] = useState(false);
 
-  // Direct fetch function from Firestore cloud
-  const fetchReportsDirectly = useCallback(
+  // Universal fetch combining Google Sheets + Firestore
+  const fetchAllReports = useCallback(
     async (showFeedback = false) => {
       setIsRefreshing(true);
+      let loaded: MedicalCenterReport[] = [];
+      let source: 'sheets' | 'firestore' | 'local' = 'local';
+
+      // 1. Try Google Sheets Webhook first (works 100% in Iran, no sanctions)
+      const webhookUrl = getSheetsWebhookUrl();
+      if (webhookUrl) {
+        try {
+          const sheetsReports = await fetchReportsFromSheets();
+          if (sheetsReports && sheetsReports.length > 0) {
+            loaded = sheetsReports;
+            source = 'sheets';
+          }
+        } catch (e) {
+          console.warn('Sheets fetch warning:', e);
+        }
+      }
+
+      // 2. Also try Firestore and merge
       try {
         const reportsRef = collection(db, 'reports');
-        let snapshot;
+        let snap;
         try {
           const q = query(reportsRef, orderBy('createdAt', 'desc'));
-          snapshot = await getDocs(q);
+          snap = await getDocs(q);
         } catch {
-          snapshot = await getDocs(reportsRef);
+          snap = await getDocs(reportsRef);
         }
 
-        const loaded: MedicalCenterReport[] = [];
-        snapshot.forEach((d) => {
-          loaded.push({ ...(d.data() as MedicalCenterReport), id: d.id });
+        const firestoreList: MedicalCenterReport[] = [];
+        snap.forEach((d) => {
+          firestoreList.push({ ...(d.data() as MedicalCenterReport), id: d.id });
         });
 
-        // Sort descending by date
-        loaded.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        if (firestoreList.length > 0) {
+          if (loaded.length === 0) {
+            loaded = firestoreList;
+            source = 'firestore';
+          } else {
+            // Merge unique reports
+            const existingKeys = new Set(loaded.map((r) => `${r.centerId}_${r.createdAt}`));
+            for (const fr of firestoreList) {
+              if (!existingKeys.has(`${fr.centerId}_${fr.createdAt}`)) {
+                loaded.push(fr);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Firestore fetch notice:', err);
+      }
 
-        setReports(loaded);
-        setConnectionStatus('connected');
-        if (showFeedback) {
-          showToast(`همگام‌سازی ابری انجام شد (${toFa(loaded.length)} گزارش دریافت شد)`);
-        }
-      } catch (err: any) {
-        console.warn('Direct fetch note:', err);
-        setConnectionStatus('offline');
-        if (showFeedback) {
-          showToast('عدم برقراری ارتباط با سرور ابری. لطفاً وضعیت اینترنت را چک کنید.');
-        }
-      } finally {
-        setIsRefreshing(false);
-        setIsLoading(false);
+      // 3. Fallback to local storage if both remote sources are empty
+      if (loaded.length === 0) {
+        try {
+          const localStored = JSON.parse(localStorage.getItem('krf_reports') || '[]');
+          if (localStored.length > 0) {
+            loaded = localStored.map((r: any, idx: number) => ({
+              id: `local-${idx}`,
+              centerId: Number(r.k || r.centerId || 1),
+              centerName: r.centerName || `مرکز کد ${r.k || r.centerId}`,
+              centerType: r.centerType || 'مرکز درمانی',
+              reason: r.reason || 'other',
+              reasonLabel: r.reasonLabel || REASON_LABELS[r.reason as ReportReason] || 'سایر',
+              details: r.details || '',
+              reporterContact: r.reporterContact || '',
+              status: r.status || 'pending',
+              createdAt: r.timestamp || r.createdAt || new Date().toISOString(),
+            }));
+            source = 'local';
+          }
+        } catch {}
+      }
+
+      // Sort descending by date
+      loaded.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      setReports(loaded);
+      setActiveSyncSource(source);
+      setIsRefreshing(false);
+      setIsLoading(false);
+
+      if (showFeedback) {
+        const sourceLabel =
+          source === 'sheets'
+            ? 'گوگل شیت (Google Sheets)'
+            : source === 'firestore'
+            ? 'سرور ابری فایربیس'
+            : 'حافظه محلی';
+        showToast(`همگام‌سازی از ${sourceLabel} انجام شد (${toFa(loaded.length)} گزارش)`);
       }
     },
     [showToast]
   );
 
-  // Initial load and real-time subscription
+  // Initial load
   useEffect(() => {
     if (!isAuthenticated) return;
+    fetchAllReports(false);
 
-    // 1. Immediately read local storage reports so screen is never blank
+    // Optional firestore live listener
     try {
-      const localReports = JSON.parse(localStorage.getItem('krf_reports') || '[]');
-      if (localReports.length > 0 && reports.length === 0) {
-        setReports(
-          localReports.map((r: any, idx: number) => ({
-            id: `local-${idx}`,
-            centerId: r.k || r.centerId,
-            centerName: r.centerName || `مرکز کد ${r.k || r.centerId}`,
-            centerType: r.centerType || 'مرکز درمانی',
-            reason: r.reason || 'other',
-            reasonLabel: r.reasonLabel || REASON_LABELS[r.reason as ReportReason] || 'سایر',
-            details: r.details || '',
-            reporterContact: r.reporterContact || '',
-            status: r.status || 'pending',
-            createdAt: r.timestamp || r.createdAt || new Date().toISOString(),
-          }))
-        );
-      }
+      const reportsRef = collection(db, 'reports');
+      const unsubscribe = onSnapshot(
+        reportsRef,
+        () => {
+          fetchAllReports(false);
+        },
+        () => {}
+      );
+      return () => unsubscribe();
     } catch {}
-
-    // 2. Direct fetch from cloud
-    fetchReportsDirectly(false);
-
-    // 3. Set up onSnapshot listener
-    const reportsRef = collection(db, 'reports');
-    const unsubscribe = onSnapshot(
-      reportsRef,
-      (snapshot) => {
-        const loaded: MedicalCenterReport[] = [];
-        snapshot.forEach((d) => {
-          loaded.push({ ...(d.data() as MedicalCenterReport), id: d.id });
-        });
-        loaded.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        setReports(loaded);
-        setConnectionStatus('connected');
-        setIsLoading(false);
-      },
-      (err) => {
-        console.warn('onSnapshot note:', err);
-        setIsLoading(false);
-      }
-    );
-
-    // 4. Auto-sync any previously unsynced local reports
-    const syncLocal = async () => {
-      try {
-        const stored = JSON.parse(localStorage.getItem('krf_reports') || '[]');
-        if (!Array.isArray(stored) || stored.length === 0) return;
-        let updated = false;
-        for (const item of stored) {
-          if (!item.syncedToCloud) {
-            const reportData = {
-              centerId: Number(item.k || item.centerId || 1),
-              centerName: String(item.centerName || 'مرکز درمانی'),
-              centerType: String(item.centerType || 'مرکز درمانی'),
-              reason: item.reason || 'other',
-              reasonLabel: item.reasonLabel || REASON_LABELS[item.reason as ReportReason] || 'سایر موارد',
-              details: item.details || '',
-              reporterContact: item.reporterContact || '',
-              status: item.status || 'pending',
-              createdAt: item.timestamp || item.createdAt || new Date().toISOString(),
-            };
-            await addDoc(reportsRef, reportData);
-            item.syncedToCloud = true;
-            updated = true;
-          }
-        }
-        if (updated) {
-          localStorage.setItem('krf_reports', JSON.stringify(stored));
-        }
-      } catch (e) {}
-    };
-    syncLocal();
-
-    return () => unsubscribe();
-  }, [isAuthenticated, fetchReportsDirectly]);
+  }, [isAuthenticated, fetchAllReports]);
 
   // Handle Username/Password Login
   const handlePasswordLogin = (e: React.FormEvent) => {
@@ -296,28 +303,58 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     showToast('رمز عبور ادمین با موفقیت تغییر کرد');
   };
 
+  const handleSaveSheetsUrl = () => {
+    setSheetsWebhookUrl(sheetsUrlInput.trim());
+    showToast('آدرس وب‌هوک گوگل شیت ذخیره شد');
+    fetchAllReports(true);
+    setIsSheetsModalOpen(false);
+  };
+
+  const handleTestSheetsConnection = async () => {
+    if (!sheetsUrlInput.trim()) {
+      showToast('لطفاً ابتدا لینک وب‌هوک را وارد فرمایید');
+      return;
+    }
+    setIsTestingSheets(true);
+    setSheetsWebhookUrl(sheetsUrlInput.trim());
+    try {
+      const res = await fetchReportsFromSheets();
+      showToast(`اتصال برقرار شد! ${toFa(res.length)} گزارش از Google Sheets دریافت شد.`);
+      fetchAllReports(false);
+    } catch (err: any) {
+      showToast('خطا در اتصال به وب‌هوک گوگل شیت. بررسی فرمایید که دسترسی روی Anyone باشد.');
+    } finally {
+      setIsTestingSheets(false);
+    }
+  };
+
+  const handleCopyScriptCode = () => {
+    navigator.clipboard.writeText(GOOGLE_APPS_SCRIPT_CODE).then(() => {
+      setCopiedCode(true);
+      showToast('کد اسکریپت گوگل شیت با موفقیت کپی شد');
+      setTimeout(() => setCopiedCode(false), 2500);
+    });
+  };
+
   // Status changer for individual report
   const handleUpdateStatus = async (reportId: string | undefined, newStatus: ReportStatus) => {
     if (!reportId) return;
 
-    try {
-      if (reportId.startsWith('local-')) {
-        setReports((prev) =>
-          prev.map((r) => (r.id === reportId ? { ...r, status: newStatus } : r))
-        );
-        showToast(`وضعیت به «${STATUS_CONFIG[newStatus].label}» تغییر یافت`);
-        return;
-      }
+    setReports((prev) =>
+      prev.map((r) => (r.id === reportId ? { ...r, status: newStatus } : r))
+    );
+    showToast(`وضعیت به «${STATUS_CONFIG[newStatus].label}» تغییر یافت`);
 
-      const reportRef = doc(db, 'reports', reportId);
-      await updateDoc(reportRef, {
-        status: newStatus,
-        updatedAt: new Date().toISOString(),
-      });
-      showToast(`وضعیت به «${STATUS_CONFIG[newStatus].label}» به‌روز شد`);
+    try {
+      if (!reportId.startsWith('local-') && !reportId.startsWith('sheets-')) {
+        const reportRef = doc(db, 'reports', reportId);
+        await updateDoc(reportRef, {
+          status: newStatus,
+          updatedAt: new Date().toISOString(),
+        });
+      }
     } catch (err) {
-      console.error('Error updating status:', err);
-      showToast('خطا در ذخیره تغییر وضعیت در سرور ابری');
+      console.warn('Status update notice:', err);
     }
   };
 
@@ -326,18 +363,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     if (!reportId) return;
     if (!window.confirm('آیا از حذف این گزارش مطمئن هستید؟')) return;
 
-    try {
-      if (reportId.startsWith('local-')) {
-        setReports((prev) => prev.filter((r) => r.id !== reportId));
-        showToast('گزارش حذف شد');
-        return;
-      }
+    setReports((prev) => prev.filter((r) => r.id !== reportId));
+    showToast('گزارش حذف شد');
 
-      await deleteDoc(doc(db, 'reports', reportId));
-      showToast('گزارش از سرور ابری حذف شد');
+    try {
+      if (!reportId.startsWith('local-') && !reportId.startsWith('sheets-')) {
+        await deleteDoc(doc(db, 'reports', reportId));
+      }
     } catch (err) {
-      console.error('Error deleting report:', err);
-      showToast('خطا در حذف گزارش از سرور ابری');
+      console.warn('Delete notice:', err);
     }
   };
 
@@ -497,7 +531,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     });
   };
 
-  // LOGIN SCREEN (Clean, username/password only, no broken Google button)
+  // LOGIN SCREEN
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
@@ -595,20 +629,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 مدیریت گزارش‌های تغییر مشخصات مراکز
               </h1>
               <span className="text-[11px] font-bold flex items-center gap-1.5">
-                {connectionStatus === 'connected' ? (
+                {activeSyncSource === 'sheets' ? (
                   <span className="text-emerald-600 flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    سرور ابری متصل است ({toFa(reports.length)} گزارش فعال)
+                    متصل به Google Sheets (همگام‌سازی زنده بین تمام دستگاه‌ها)
                   </span>
-                ) : connectionStatus === 'connecting' ? (
-                  <span className="text-amber-600 flex items-center gap-1">
-                    <RefreshCw className="w-3 h-3 animate-spin" />
-                    در حال اتصال به سرور ابری...
+                ) : activeSyncSource === 'firestore' ? (
+                  <span className="text-blue-600 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-blue-500" />
+                    متصل به سرور ابری ({toFa(reports.length)} گزارش فعال)
                   </span>
                 ) : (
-                  <span className="text-slate-500 flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-slate-400" />
-                    حالت آفلاین (استفاده از حافظه دستگاه)
+                  <span className="text-amber-600 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
+                    برای همگام‌سازی بین گوشی و سیستم، روی «اتصال به Google Sheets» کلیک کنید
                   </span>
                 )}
               </span>
@@ -617,9 +651,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => fetchReportsDirectly(true)}
+              onClick={() => setIsSheetsModalOpen(true)}
+              title="تنظیمات اتصال Google Sheets"
+              className="py-2 px-3 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1.5 transition shadow-2xs"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+              <span className="hidden sm:inline">اتصال به Google Sheets</span>
+            </button>
+
+            <button
+              onClick={() => fetchAllReports(true)}
               disabled={isRefreshing}
-              title="همگام‌سازی و دریافت مجدد از سرور ابری"
+              title="همگام‌سازی و دریافت مجدد گزارش‌ها"
               className="p-2 rounded-xl text-[#0a4c9a] hover:bg-blue-50 border border-blue-200 transition"
             >
               <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -654,6 +697,27 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       {/* Main Container */}
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+        {/* Google Sheets Setup Callout Banner if not connected */}
+        {!getSheetsWebhookUrl() && (
+          <div className="bg-gradient-to-r from-emerald-500 to-[#0a4c9a] text-white p-4 sm:p-5 rounded-2xl shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 font-black text-sm">
+                <FileSpreadsheet className="w-5 h-5 text-amber-300" />
+                <span>راهکار تجمیع همزمان تمام گوشی‌ها و کامپیوترها: اتصال به Google Sheets</span>
+              </div>
+              <p className="text-xs text-blue-100/90 leading-relaxed max-w-2xl">
+                با اتصال برنامه به یک فایل رایگان Google Sheets در اکانت گوگل خود، گزارش‌های ارسالی از تمام دستگاه‌ها (موبایل، کروم، اج و هر آی‌پی) بدون تحریم و بدون فیلتر در یک جدول مرکزی ثبت و همگام‌سازی می‌شوند.
+              </p>
+            </div>
+            <button
+              onClick={() => setIsSheetsModalOpen(true)}
+              className="shrink-0 bg-white text-emerald-800 hover:bg-emerald-50 py-2.5 px-4 rounded-xl font-bold text-xs shadow-sm transition active:scale-95"
+            >
+              تنظیم در ۲ دقیقه (کد آماده)
+            </button>
+          </div>
+        )}
+
         {/* KPI Counter Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
@@ -753,12 +817,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </button>
 
             <button
-              onClick={() => fetchReportsDirectly(true)}
+              onClick={() => fetchAllReports(true)}
               disabled={isRefreshing}
               className="py-2.5 px-3 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-[#0a4c9a] text-xs font-bold flex items-center gap-1.5 transition"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-              <span>همگام‌سازی ابری</span>
+              <span>همگام‌سازی زنده</span>
             </button>
           </div>
         </div>
@@ -815,7 +879,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         {isLoading ? (
           <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-500 text-xs">
             <RefreshCw className="w-6 h-6 animate-spin text-[#0a4c9a] mx-auto mb-2" />
-            <span>در حال دریافت گزارش‌ها از پایگاه داده ابری...</span>
+            <span>در حال دریافت گزارش‌ها...</span>
           </div>
         ) : reports.length === 0 ? (
           <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-2">
@@ -871,7 +935,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               </div>
                             </td>
                             <td className="py-3.5 px-4 text-center">
-                              <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-blue-100 text-[#0a4c9a] font-black text-xs tabular-nums border border-blue-200">
+                              <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-blue-100 text-[#0a4c9a] font-black text-xs tabular-nums border border-blue-200 shadow-2xs">
                                 {toFa(group.reportCount)} گزارش
                               </span>
                             </td>
@@ -1191,6 +1255,138 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </div>
         )}
       </main>
+
+      {/* Google Sheets Setup Modal */}
+      {isSheetsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            onClick={() => setIsSheetsModalOpen(false)}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs"
+          />
+          <div className="relative w-full max-w-xl bg-white rounded-3xl p-6 shadow-2xl z-10 border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                  <FileSpreadsheet className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">
+                    اتصال به Google Sheets (همگام‌سازی دائمی و بدون تحریم)
+                  </h3>
+                  <span className="text-[11px] text-slate-500">
+                    گزارش‌های کاربران مستقیماً در فایل اکسل آنلاین گوگل شما ثبت می‌شود
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsSheetsModalOpen(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-xs"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Step by step guide */}
+            <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200/80 leading-relaxed">
+              <h4 className="font-bold text-slate-900 flex items-center gap-1.5">
+                <Code2 className="w-4 h-4 text-[#0a4c9a]" />
+                <span>راهنمای ۳ مرحله‌ای راه‌اندازی (فقط ۲ دقیقه):</span>
+              </h4>
+              <ol className="list-decimal list-inside space-y-1.5 text-slate-700 pr-1 text-[11.5px]">
+                <li>
+                  وارد اکانت گوگل خود شده و یک شیت خالی در{' '}
+                  <a
+                    href="https://sheets.new"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[#0a4c9a] font-bold underline inline-flex items-center gap-0.5"
+                  >
+                    <span>sheets.new</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>{' '}
+                  ایجاد کنید.
+                </li>
+                <li>
+                  از منوی بالای شیت، روی <strong>Extensions (برنامه‌های افزودنی)</strong> ⬅️{' '}
+                  <strong>Apps Script</strong> کلیک کنید.
+                </li>
+                <li>
+                  تمام کدهای پیش‌فرض را پاک کرده و <strong>کد آماده زیر</strong> را درون آن پیست (Ctrl+V) کنید:
+                </li>
+              </ol>
+
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={handleCopyScriptCode}
+                  className="w-full py-2.5 px-3 rounded-xl bg-[#0a4c9a] hover:bg-blue-900 text-white font-bold flex items-center justify-center gap-2 transition shadow-xs text-xs"
+                >
+                  {copiedCode ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-300" />
+                      <span>کد اسکریپت کپی شد! در Apps Script پیست کنید</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      <span>کپی کد آماده Google Apps Script</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="text-[11px] text-slate-600 bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
+                <strong className="block text-slate-800">مرحله نهایی (Deploy):</strong>
+                <span>
+                  در بالای صفحه Apps Script، دکمه آبی <strong>Deploy</strong> ⬅️ <strong>New deployment</strong> را بزنید.
+                  نوع آن را <strong>Web app</strong> بگذارید و در بخش Who has access حتماً گزینه{' '}
+                  <strong className="text-emerald-700">Anyone (هر کسی)</strong> را انتخاب کنید. لینکی که به شما می‌دهد (URL) را کپی کرده و در کادر زیر قرار دهید:
+                </span>
+              </div>
+            </div>
+
+            {/* Input URL */}
+            <div className="space-y-1.5 pt-1">
+              <label className="block text-slate-800 font-bold">
+                آدرس وب‌هوک گوگل شیت (Web app URL):
+              </label>
+              <div className="relative">
+                <input
+                  type="url"
+                  value={sheetsUrlInput}
+                  onChange={(e) => setSheetsUrlInput(e.target.value)}
+                  placeholder="https://script.google.com/macros/s/AKfycbx.../exec"
+                  dir="ltr"
+                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 outline-none focus:bg-white focus:border-emerald-600 font-mono text-left"
+                />
+                <Link className="w-4 h-4 text-slate-400 absolute right-3 top-3.5 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col sm:flex-row items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={handleTestSheetsConnection}
+                disabled={isTestingSheets}
+                className="w-full sm:flex-1 py-3 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center gap-1.5 transition"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isTestingSheets ? 'animate-spin' : ''}`} />
+                <span>{isTestingSheets ? 'در حال تست...' : 'تست زنده اتصال به شیت'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveSheetsUrl}
+                className="w-full sm:flex-1 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold flex items-center justify-center gap-1.5 transition shadow-xs"
+              >
+                <Check className="w-4 h-4" />
+                <span>ذخیره و فعال‌سازی در برنامه</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Change Password Modal */}
       {isChangePassOpen && (

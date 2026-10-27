@@ -18,6 +18,7 @@ import { ExternalLink, X, RotateCcw, Bookmark, Info, Sparkles } from 'lucide-rea
 import { collection, addDoc, doc, getDocFromServer } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import { AdminPanel } from './components/AdminPanel';
+import { submitReportToSheets } from './lib/sheets';
 
 const STORAGE_KEY = 'krf_saved';
 const PORTAL_URL = 'https://sinad.karafarin-insurance.ir/DarmanAfzar.Customer/index.html';
@@ -132,18 +133,20 @@ export default function App() {
         createdAt: new Date().toISOString(),
       };
 
-      // Attempt write directly to Firestore cloud database
+      // 1. Submit to Google Sheets (unblocked in Iran, zero sanction)
+      submitReportToSheets(reportData).catch((e) => console.warn('Sheets submit notice:', e));
+
+      // 2. Submit to Firestore cloud database
       let docCreated = false;
       try {
         const reportsCol = collection(db, 'reports');
         await addDoc(reportsCol, reportData);
         docCreated = true;
-        showToast('گزارش با موفقیت در پایگاه داده ابری ثبت شد. با تشکر!');
       } catch (err) {
         console.warn('Firestore cloud write notice:', err);
       }
 
-      // Backup to local queue
+      // 3. Backup to local queue
       try {
         const stored = JSON.parse(localStorage.getItem('krf_reports') || '[]');
         stored.unshift({
@@ -156,10 +159,7 @@ export default function App() {
         console.warn('LocalStorage save error:', e);
       }
 
-      if (!docCreated) {
-        showToast('گزارش شما با موفقیت ثبت شد');
-      }
-
+      showToast('گزارش با موفقیت ثبت شد. با تشکر!');
       return true;
     },
     [showToast]
