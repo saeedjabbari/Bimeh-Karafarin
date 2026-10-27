@@ -5,7 +5,7 @@ import { CenterDetailModal } from './components/CenterDetailModal';
 import { StreetFilterModal } from './components/StreetFilterModal';
 import { ReportModal } from './components/ReportModal';
 import { GuideTab } from './components/GuideTab';
-import { StreetsTab } from './components/StreetsTab';
+import { StreetPinterestBoard } from './components/StreetPinterestBoard';
 import { BottomNav } from './components/BottomNav';
 import { Toast } from './components/Toast';
 import { OfflineBanner } from './components/OfflineBanner';
@@ -14,7 +14,7 @@ import { MEDICAL_CENTERS, MedicalCenter } from './data/centers';
 import { TabType, ReportReason } from './types';
 import { norm, squash, toFa } from './utils/persian';
 import { usePWAInstall } from './hooks/usePWAInstall';
-import { ExternalLink, X, RotateCcw, Bookmark, Info, Sparkles } from 'lucide-react';
+import { ExternalLink, X, RotateCcw, Bookmark, Info, Sparkles, MapPin } from 'lucide-react';
 import { collection, addDoc, doc, getDocFromServer } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import { AdminPanel } from './components/AdminPanel';
@@ -36,6 +36,7 @@ export default function App() {
   // Modals & Sheets
   const [selectedCenter, setSelectedCenter] = useState<MedicalCenter | null>(null);
   const [isStreetFilterOpen, setIsStreetFilterOpen] = useState(false);
+  const [isStreetPinterestExpanded, setIsStreetPinterestExpanded] = useState(false);
   const [centerForReport, setCenterForReport] = useState<MedicalCenter | null>(null);
   const [isIOSGuideOpen, setIsIOSGuideOpen] = useState(false);
 
@@ -478,6 +479,65 @@ export default function App() {
               </div>
             )}
 
+            {/* Pinterest Street Filter Bar */}
+            {activeTab === 'centers' && (
+              <div className="bg-white rounded-2xl border border-slate-200/90 p-3 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-orange-50 text-[#F15A31] flex items-center justify-center shrink-0 border border-orange-100">
+                      <MapPin className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-extrabold text-slate-800">
+                          فیلتر خیابان‌های ارومیه
+                        </span>
+                        <span className="text-[10px] bg-orange-100 text-[#F15A31] font-bold px-1.5 py-0.5 rounded-md">
+                          پینترستی
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-slate-500">
+                        {selectedStreet
+                          ? `خیابان فعال: ${selectedStreet} (${toFa(streetCounts[selectedStreet] || 0)} مرکز)`
+                          : `اندازه باکس متناسب با تعداد مراکز (${toFa(Object.keys(streetCounts).length)} خیابان)`}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {selectedStreet && (
+                      <button
+                        onClick={() => setSelectedStreet('')}
+                        className="text-[11px] text-slate-500 hover:text-red-500 font-bold px-2 py-1 rounded-lg border border-slate-200"
+                      >
+                        حذف فیلتر
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setIsStreetPinterestExpanded((prev) => !prev)}
+                      className="text-xs font-bold text-[#0a4c9a] hover:bg-blue-50 px-2.5 py-1.5 rounded-xl border border-blue-200 transition active:scale-95"
+                    >
+                      {isStreetPinterestExpanded ? 'بستن ✕' : 'نمایش خیابان‌ها ▾'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Expanded Pinterest Street Board */}
+                {isStreetPinterestExpanded && (
+                  <div className="pt-2 border-t border-slate-100">
+                    <StreetPinterestBoard
+                      selectedStreet={selectedStreet}
+                      onSelectStreet={(st) => {
+                        setSelectedStreet(st);
+                      }}
+                      streetCounts={streetCounts}
+                      totalCenters={MEDICAL_CENTERS.length}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* List Header Count */}
             <div className="flex items-center justify-between text-xs text-slate-600 px-1 pt-1">
               <h2 className="font-extrabold text-slate-800 text-sm">
@@ -560,19 +620,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Tab 2: Streets & Hubs */}
-        {activeTab === 'streets' && (
-          <StreetsTab
-            streetCounts={streetCounts}
-            onSelectStreetAndSwitch={(streetName) => {
-              setSelectedStreet(streetName);
-              setActiveTab('centers');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-          />
-        )}
-
-        {/* Tab 3: Guide & Sinad Claim Portal */}
+        {/* Tab 2: Guide & Sinad Claim Portal */}
         {activeTab === 'guide' && <GuideTab />}
       </main>
 

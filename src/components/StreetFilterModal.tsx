@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { X, MapPin, Check, Search } from 'lucide-react';
+import { X, MapPin, Sparkles } from 'lucide-react';
+import { StreetPinterestBoard } from './StreetPinterestBoard';
 import { toFa } from '../utils/persian';
 
 interface StreetFilterModalProps {
@@ -23,14 +24,6 @@ export const StreetFilterModal: React.FC<StreetFilterModalProps> = ({
 
   if (!isOpen) return null;
 
-  const sortedStreets = Object.keys(streetCounts).sort(
-    (a, b) => streetCounts[b] - streetCounts[a]
-  );
-
-  const filteredStreets = sortedStreets.filter((s) =>
-    s.includes(streetQuery.trim())
-  );
-
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       {/* Backdrop */}
@@ -40,116 +33,94 @@ export const StreetFilterModal: React.FC<StreetFilterModalProps> = ({
         aria-hidden="true"
       />
 
-      {/* Modal */}
-      <div className="relative w-full max-w-md bg-white rounded-t-3xl sm:rounded-2xl max-h-[85vh] flex flex-col shadow-2xl z-10 border border-slate-200">
+      {/* Modal Dialog */}
+      <div className="relative w-full max-w-2xl bg-[#f8fafc] rounded-t-3xl sm:rounded-3xl max-h-[90vh] flex flex-col shadow-2xl z-10 border border-slate-200 overflow-hidden">
         {/* Header */}
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <MapPin className="w-5 h-5 text-[#0a4c9a]" />
-            <h2 className="text-base font-bold text-slate-900">
-              فیلتر مراکز بر اساس خیابان / منطقه
-            </h2>
+        <div className="p-4 bg-white border-b border-slate-200/80 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-orange-50 text-[#F15A31] flex items-center justify-center shrink-0 border border-orange-100">
+              <MapPin className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
+                  فیلتر خیابان‌های ارومیه
+                </h2>
+                <span className="text-[10px] bg-orange-100 text-[#F15A31] font-bold px-1.5 py-0.5 rounded-md">
+                  پینترستی
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                اندازه هر باکس متناسب با تعداد مراکز درمانی در آن خیابان است
+              </p>
+            </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition"
+            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition active:scale-95"
+            aria-label="بستن"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Quick Search */}
-        <div className="p-3 border-b border-slate-100 bg-slate-50">
-          <div className="relative">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              value={streetQuery}
-              onChange={(e) => setStreetQuery(e.target.value)}
-              placeholder="جستجوی خیابان (مثلاً حسنی، مولوی، بهشتی)..."
-              className="w-full h-9 bg-white text-xs rounded-xl pr-9 pl-3 border border-slate-200 outline-none focus:border-[#0a4c9a]"
-            />
-          </div>
+        <div className="p-3 bg-white/70 border-b border-slate-200/60 shrink-0">
+          <input
+            type="text"
+            value={streetQuery}
+            onChange={(e) => setStreetQuery(e.target.value)}
+            placeholder="جستجوی نام خیابان (مثلاً حسنی، مولوی، بهشتی)..."
+            className="w-full h-10 bg-white text-xs rounded-xl px-3.5 border border-slate-200 outline-none focus:border-[#0a4c9a] focus:ring-1 focus:ring-[#0a4c9a]/30 transition"
+          />
         </div>
 
-        {/* Street List */}
-        <div className="p-3 overflow-y-auto space-y-1 flex-1">
-          {/* All Streets option */}
-          <button
-            onClick={() => {
-              onSelectStreet('');
-              onClose();
-            }}
-            className={`w-full flex items-center justify-between p-3 rounded-xl text-xs font-semibold transition ${
-              selectedStreet === ''
-                ? 'bg-[#0a4c9a] text-white'
-                : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-100'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <span>همه مناطق و خیابان‌های ارومیه</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="tabular-nums opacity-80">{toFa(totalCenters)} مرکز</span>
-              {selectedStreet === '' && <Check className="w-4 h-4" />}
-            </div>
-          </button>
-
-          {/* Individual Streets */}
-          {filteredStreets.map((st) => {
-            const count = streetCounts[st];
-            const isSelected = selectedStreet === st;
-            return (
-              <button
-                key={st}
-                onClick={() => {
-                  onSelectStreet(st);
-                  onClose();
-                }}
-                className={`w-full flex items-center justify-between p-3 rounded-xl text-xs font-semibold transition ${
-                  isSelected
-                    ? 'bg-[#0a4c9a] text-white'
-                    : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-100'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <MapPin className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-slate-400'}`} />
-                  <span>خیابان {st}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`text-[11px] font-bold tabular-nums px-2 py-0.5 rounded-full ${
-                      isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-                    }`}
-                  >
-                    {toFa(count)} مرکز
-                  </span>
-                  {isSelected && <Check className="w-4 h-4" />}
-                </div>
-              </button>
-            );
-          })}
+        {/* Pinterest Board Container */}
+        <div className="p-3.5 sm:p-4 overflow-y-auto flex-1 w-full overflow-x-hidden">
+          <StreetPinterestBoard
+            selectedStreet={selectedStreet}
+            onSelectStreet={onSelectStreet}
+            streetCounts={streetCounts}
+            totalCenters={totalCenters}
+            searchQuery={streetQuery}
+            onClose={onClose}
+          />
         </div>
 
         {/* Footer */}
-        <div className="p-3 border-t border-slate-100 bg-slate-50 flex gap-2">
-          {selectedStreet && (
+        <div className="p-3 bg-white border-t border-slate-200/80 flex items-center justify-between gap-2.5 shrink-0">
+          <div className="min-w-0 flex items-center gap-1.5 text-xs">
+            {selectedStreet ? (
+              <span className="text-slate-600 truncate">
+                فیلتر فعال: <strong className="text-[#0a4c9a]">خیابان {selectedStreet}</strong>{' '}
+                <span className="tabular-nums">({toFa(streetCounts[selectedStreet] || 0)} مرکز)</span>
+              </span>
+            ) : (
+              <span className="text-slate-500">تمام خیابان‌ها در حال نمایش هستند</span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {selectedStreet && (
+              <button
+                type="button"
+                onClick={() => {
+                  onSelectStreet('');
+                  onClose();
+                }}
+                className="py-2 px-3 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition active:scale-95"
+              >
+                حذف فیلتر
+              </button>
+            )}
             <button
-              onClick={() => {
-                onSelectStreet('');
-                onClose();
-              }}
-              className="flex-1 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition"
+              type="button"
+              onClick={onClose}
+              className="py-2 px-4 rounded-xl bg-[#0a4c9a] hover:bg-blue-900 text-white text-xs font-bold transition shadow-xs active:scale-95"
             >
-              حذف فیلتر خیابان
+              مشاهده مراکز
             </button>
-          )}
-          <button
-            onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl bg-[#0a4c9a] hover:bg-blue-900 text-white text-xs font-bold transition"
-          >
-            بستن
-          </button>
+          </div>
         </div>
       </div>
     </div>

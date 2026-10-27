@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, X, SlidersHorizontal, Download, Moon, ShieldCheck } from 'lucide-react';
+import { Search, X, SlidersHorizontal, Download, Moon, ShieldCheck, MapPin } from 'lucide-react';
 import { toFa } from '../utils/persian';
 import { CATEGORY_CONFIG, getCategoryMeta } from '../constants/categories';
 
@@ -121,16 +121,16 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Street Filter Button */}
           <button
             onClick={onOpenStreetFilter}
-            className={`relative h-11 px-3.5 rounded-full flex items-center gap-1.5 text-xs font-bold transition shadow-sm shrink-0 ${
+            className={`relative h-11 px-3.5 rounded-full flex items-center gap-1.5 text-xs font-bold transition shadow-sm shrink-0 active:scale-95 ${
               selectedStreet
                 ? 'bg-[#F15A31] text-white hover:bg-[#d94a24]'
                 : 'bg-white text-[#0a4c9a] hover:bg-blue-50'
             }`}
-            title="فیلتر خیابان‌های ارومیه"
+            title="فیلتر خیابان‌های ارومیه (پینترستی)"
           >
-            <SlidersHorizontal className="w-4 h-4" />
-            <span className="hidden sm:inline">
-              {selectedStreet ? selectedStreet : 'خیابان'}
+            <MapPin className="w-4 h-4" />
+            <span className="inline max-w-[80px] sm:max-w-none truncate">
+              {selectedStreet ? selectedStreet : 'خیابان‌ها'}
             </span>
             {selectedStreet && (
               <span className="w-2 h-2 rounded-full bg-white animate-pulse" />

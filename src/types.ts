@@ -1,4 +1,4 @@
-export type TabType = 'centers' | 'saved' | 'streets' | 'guide';
+export type TabType = 'centers' | 'saved' | 'guide';
 
 export type SortOption = 'default' | 'name' | 'phone';
 
