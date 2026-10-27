@@ -4,6 +4,7 @@ import {
   query,
   orderBy,
   onSnapshot,
+  getDocs,
   doc,
   updateDoc,
   deleteDoc,
@@ -123,6 +124,36 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [reasonFilter, setReasonFilter] = useState<string>('all');
   const [copiedForSheets, setCopiedForSheets] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Direct one-shot HTTP fetch from Firestore (bulletproof on mobile networks)
+  const fetchReportsDirectly = useCallback(
+    async (showFeedback = false) => {
+      setIsRefreshing(true);
+      try {
+        const reportsRef = collection(db, 'reports');
+        const q = query(reportsRef, orderBy('createdAt', 'desc'));
+        const snapshot = await getDocs(q);
+        const loaded: MedicalCenterReport[] = [];
+        snapshot.forEach((d) => {
+          loaded.push({ ...(d.data() as MedicalCenterReport), id: d.id });
+        });
+        setReports(loaded);
+        if (showFeedback) {
+          showToast(`همگام‌سازی ابری انجام شد (${toFa(loaded.length)} گزارش دریافت شد)`);
+        }
+      } catch (err) {
+        console.warn('Direct fetch notice:', err);
+        if (showFeedback) {
+          showToast('خطا در ارتباط با سرور ابری. لطفاً وضعیت اینترنت را بررسی کنید.');
+        }
+      } finally {
+        setIsRefreshing(false);
+        setIsLoading(false);
+      }
+    },
+    [showToast]
+  );
 
   // Listen to Firebase Auth state
   useEffect(() => {
@@ -141,6 +172,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     if (!isAuthenticated) return;
 
     setErrorMsg(null);
+
+    // Initial direct fetch
+    fetchReportsDirectly(false);
 
     // 1. Immediately read local storage reports so admin sees data instantly
     try {
@@ -600,6 +634,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => fetchReportsDirectly(true)}
+              disabled={isRefreshing}
+              title="همگام‌سازی و دریافت مجدد از سرور ابری"
+              className="p-2 rounded-xl text-[#0a4c9a] hover:bg-blue-50 border border-blue-200 transition"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+
             <button
               onClick={() => setIsChangePassOpen(true)}
               title="تغییر رمز عبور"

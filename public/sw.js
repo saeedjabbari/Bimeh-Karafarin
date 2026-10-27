@@ -1,4 +1,4 @@
-const VER = 'krf-v5';
+const VER = 'krf-v6';
 const SHELL = ['./', './index.html', './manifest.webmanifest'];
 
 self.addEventListener('install', e => {
