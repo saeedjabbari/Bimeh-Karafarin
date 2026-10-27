@@ -11,12 +11,12 @@
         },
         "centerName": {
           "type": "string",
-          "maxLength": 150,
+          "maxLength": 300,
           "description": "Official name of the medical center"
         },
         "centerType": {
           "type": "string",
-          "maxLength": 50,
+          "maxLength": 150,
           "description": "Medical center specialty or category"
         },
         "reason": {
@@ -26,17 +26,17 @@
         },
         "reasonLabel": {
           "type": "string",
-          "maxLength": 100,
+          "maxLength": 200,
           "description": "Persian label for the issue type"
         },
         "details": {
           "type": "string",
-          "maxLength": 1000,
+          "maxLength": 2000,
           "description": "Detailed notes or new correct contact/address"
         },
         "reporterContact": {
           "type": "string",
-          "maxLength": 50,
+          "maxLength": 100,
           "description": "Optional contact number or name of the submitter"
         },
         "status": {

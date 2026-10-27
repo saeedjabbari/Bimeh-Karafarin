@@ -189,9 +189,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             id: d.id,
           });
         });
-        if (loaded.length > 0) {
-          setReports(loaded);
-        }
+        setReports(loaded);
         setIsLoading(false);
       },
       (err) => {
@@ -200,6 +198,42 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         setIsLoading(false);
       }
     );
+
+    // Auto-sync any previously stored local reports to the Firestore cloud database
+    const syncLocalToFirestore = async () => {
+      try {
+        const stored = JSON.parse(localStorage.getItem('krf_reports') || '[]');
+        if (!Array.isArray(stored) || stored.length === 0) return;
+
+        let updated = false;
+        const reportsCol = collection(db, 'reports');
+
+        for (const item of stored) {
+          if (!item.syncedToCloud) {
+            const reportData = {
+              centerId: Number(item.k || item.centerId || 1),
+              centerName: String(item.centerName || 'مرکز درمانی'),
+              centerType: String(item.centerType || 'مرکز درمانی'),
+              reason: item.reason || 'other',
+              reasonLabel: item.reasonLabel || REASON_LABELS[item.reason as ReportReason] || 'سایر موارد',
+              details: item.details || '',
+              reporterContact: item.reporterContact || '',
+              status: item.status || 'pending',
+              createdAt: item.timestamp || item.createdAt || new Date().toISOString(),
+            };
+            await addDoc(reportsCol, reportData);
+            item.syncedToCloud = true;
+            updated = true;
+          }
+        }
+        if (updated) {
+          localStorage.setItem('krf_reports', JSON.stringify(stored));
+        }
+      } catch (e) {
+        console.warn('Auto-sync notice:', e);
+      }
+    };
+    syncLocalToFirestore();
 
     return () => {
       clearTimeout(timer);

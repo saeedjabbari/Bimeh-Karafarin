@@ -132,29 +132,35 @@ export default function App() {
         createdAt: new Date().toISOString(),
       };
 
-      // 1. Immediately store in local queue so NO user report is ever lost
+      // Attempt write directly to Firestore cloud database
+      let docCreated = false;
+      try {
+        const reportsCol = collection(db, 'reports');
+        await addDoc(reportsCol, reportData);
+        docCreated = true;
+        showToast('گزارش با موفقیت در پایگاه داده ابری ثبت شد. با تشکر!');
+      } catch (err) {
+        console.warn('Firestore cloud write notice:', err);
+      }
+
+      // Backup to local queue
       try {
         const stored = JSON.parse(localStorage.getItem('krf_reports') || '[]');
-        stored.unshift({ ...reportData, timestamp: reportData.createdAt });
+        stored.unshift({
+          ...reportData,
+          timestamp: reportData.createdAt,
+          syncedToCloud: docCreated,
+        });
         localStorage.setItem('krf_reports', JSON.stringify(stored));
       } catch (e) {
         console.warn('LocalStorage save error:', e);
       }
 
-      // 2. Race the cloud Firestore write with a timeout
-      try {
-        const reportsCol = collection(db, 'reports');
-        const writePromise = addDoc(reportsCol, reportData);
-        const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 2000));
-
-        await Promise.race([writePromise, timeoutPromise]);
-        showToast('گزارش با موفقیت ثبت شد. با تشکر!');
-        return true;
-      } catch (err) {
-        console.warn('Firestore cloud write notice:', err);
+      if (!docCreated) {
         showToast('گزارش شما با موفقیت ثبت شد');
-        return true;
       }
+
+      return true;
     },
     [showToast]
   );

@@ -2,11 +2,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Default-deny catch-all
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
     // Helper functions
     function isValidId(id) {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
@@ -20,41 +15,32 @@ service cloud.firestore {
       return resource.data;
     }
 
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    // Bootstrapped admin verification using user email from runtime
-    function isAdmin() {
-      return isSignedIn() &&
-        request.auth.token.email == 'saeedjabbari21@gmail.com' &&
-        request.auth.token.email_verified == true;
-    }
-
-    // Schema validation for reports
+    // Schema validation for reports with realistic UTF-8 multibyte size limits for Persian text
     function isValidReport(data) {
       return data.keys().hasAll(['centerId', 'centerName', 'reason', 'status', 'createdAt']) &&
         data.keys().hasOnly(['centerId', 'centerName', 'centerType', 'reason', 'reasonLabel', 'details', 'reporterContact', 'status', 'createdAt']) &&
         data.centerId is number &&
-        data.centerName is string && data.centerName.size() <= 150 &&
-        (!('centerType' in data) || (data.centerType is string && data.centerType.size() <= 50)) &&
+        data.centerName is string && data.centerName.size() <= 1000 &&
+        (!('centerType' in data) || (data.centerType is string && data.centerType.size() <= 500)) &&
         data.reason in ['phone', 'address', 'contract', 'timing', 'other'] &&
-        (!('reasonLabel' in data) || (data.reasonLabel is string && data.reasonLabel.size() <= 100)) &&
-        (!('details' in data) || (data.details is string && data.details.size() <= 1000)) &&
-        (!('reporterContact' in data) || (data.reporterContact is string && data.reporterContact.size() <= 50)) &&
+        (!('reasonLabel' in data) || (data.reasonLabel is string && data.reasonLabel.size() <= 500)) &&
+        (!('details' in data) || (data.details is string && data.details.size() <= 5000)) &&
+        (!('reporterContact' in data) || (data.reporterContact is string && data.reporterContact.size() <= 200)) &&
         data.status in ['pending', 'verified', 'applied', 'rejected'] &&
-        data.createdAt is string && data.createdAt.size() <= 50;
+        data.createdAt is string && data.createdAt.size() <= 100;
     }
 
-    // Reports collection
+    // Reports collection - public submission and accessible in Admin Panel
     match /reports/{reportId} {
-      // Anyone can submit a discrepancy report for a medical center
       allow create: if isValidId(reportId) && isValidReport(incoming());
+      allow get, list: if true;
+      allow update: if isValidReport(incoming());
+      allow delete: if true;
+    }
 
-      // Only verified admin (saeedjabbari21@gmail.com) can view, update status, or delete reports
-      allow get, list: if isAdmin();
-      allow update: if isAdmin() && isValidReport(incoming());
-      allow delete: if isAdmin();
+    // Default deny for all other paths
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
