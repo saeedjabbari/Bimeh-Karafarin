@@ -10,14 +10,7 @@ import {
   deleteDoc,
   addDoc,
 } from 'firebase/firestore';
-import {
-  GoogleAuthProvider,
-  signInWithPopup,
-  signOut,
-  onAuthStateChanged,
-  User,
-} from 'firebase/auth';
-import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { db } from '../lib/firebase';
 import { MedicalCenterReport, ReportStatus, ReportReason } from '../types';
 import { formatPersianDate, toFa } from '../utils/persian';
 import {
@@ -41,7 +34,12 @@ import {
   XCircle,
   HelpCircle,
   KeyRound,
-  ExternalLink,
+  ChevronDown,
+  ChevronUp,
+  Layers,
+  List,
+  Building2,
+  AlertCircle,
 } from 'lucide-react';
 
 const ADMIN_STORAGE_KEY = 'krf_admin_logged_in';
@@ -81,7 +79,7 @@ const STATUS_CONFIG: Record<
     icon: CheckCircle,
   },
   applied: {
-    label: 'اصلاح شد در اطلاعات',
+    label: 'اصلاح شد در برنامه',
     color: 'text-emerald-700',
     bg: 'bg-emerald-50',
     border: 'border-emerald-200',
@@ -96,19 +94,28 @@ const STATUS_CONFIG: Record<
   },
 };
 
+export interface GroupedCenterReports {
+  centerId: number;
+  centerName: string;
+  centerType: string;
+  reportCount: number;
+  reasonsSummary: Record<string, number>;
+  latestReportDate: string;
+  pendingCount: number;
+  reports: MedicalCenterReport[];
+}
+
 export const AdminPanel: React.FC<AdminPanelProps> = ({
   onBackToApp,
   showToast,
 }) => {
-  // Authentication states
+  // Authentication state (clean username & password)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     return sessionStorage.getItem(ADMIN_STORAGE_KEY) === 'true';
   });
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
-  const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
 
   // Password management modal
   const [isChangePassOpen, setIsChangePassOpen] = useState(false);
@@ -117,35 +124,51 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Data states
   const [reports, setReports] = useState<MedicalCenterReport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'offline'>('connecting');
+
+  // View modes: 'grouped' (تجمیع بر اساس مرکز) or 'detailed' (تک‌تک سطرها)
+  const [viewMode, setViewMode] = useState<'grouped' | 'detailed'>('grouped');
+  const [expandedCenterId, setExpandedCenterId] = useState<number | null>(null);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [reasonFilter, setReasonFilter] = useState<string>('all');
   const [copiedForSheets, setCopiedForSheets] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Direct one-shot HTTP fetch from Firestore (bulletproof on mobile networks)
+  // Direct fetch function from Firestore cloud
   const fetchReportsDirectly = useCallback(
     async (showFeedback = false) => {
       setIsRefreshing(true);
       try {
         const reportsRef = collection(db, 'reports');
-        const q = query(reportsRef, orderBy('createdAt', 'desc'));
-        const snapshot = await getDocs(q);
+        let snapshot;
+        try {
+          const q = query(reportsRef, orderBy('createdAt', 'desc'));
+          snapshot = await getDocs(q);
+        } catch {
+          snapshot = await getDocs(reportsRef);
+        }
+
         const loaded: MedicalCenterReport[] = [];
         snapshot.forEach((d) => {
           loaded.push({ ...(d.data() as MedicalCenterReport), id: d.id });
         });
+
+        // Sort descending by date
+        loaded.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
         setReports(loaded);
+        setConnectionStatus('connected');
         if (showFeedback) {
           showToast(`همگام‌سازی ابری انجام شد (${toFa(loaded.length)} گزارش دریافت شد)`);
         }
-      } catch (err) {
-        console.warn('Direct fetch notice:', err);
+      } catch (err: any) {
+        console.warn('Direct fetch note:', err);
+        setConnectionStatus('offline');
         if (showFeedback) {
-          showToast('خطا در ارتباط با سرور ابری. لطفاً وضعیت اینترنت را بررسی کنید.');
+          showToast('عدم برقراری ارتباط با سرور ابری. لطفاً وضعیت اینترنت را چک کنید.');
         }
       } finally {
         setIsRefreshing(false);
@@ -155,31 +178,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     [showToast]
   );
 
-  // Listen to Firebase Auth state
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-      if (user && user.email === 'saeedjabbari21@gmail.com') {
-        setIsAuthenticated(true);
-        sessionStorage.setItem(ADMIN_STORAGE_KEY, 'true');
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // Fetch reports in real-time when authenticated
+  // Initial load and real-time subscription
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    setErrorMsg(null);
-
-    // Initial direct fetch
-    fetchReportsDirectly(false);
-
-    // 1. Immediately read local storage reports so admin sees data instantly
+    // 1. Immediately read local storage reports so screen is never blank
     try {
       const localReports = JSON.parse(localStorage.getItem('krf_reports') || '[]');
-      if (localReports.length > 0) {
+      if (localReports.length > 0 && reports.length === 0) {
         setReports(
           localReports.map((r: any, idx: number) => ({
             id: `local-${idx}`,
@@ -194,54 +200,38 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             createdAt: r.timestamp || r.createdAt || new Date().toISOString(),
           }))
         );
-        setIsLoading(false);
-      } else {
-        setIsLoading(true);
       }
-    } catch {
-      setIsLoading(true);
-    }
+    } catch {}
 
-    // Safety timeout: if Firestore takes > 3.5s due to connection or proxy, don't leave spinner forever
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 3500);
+    // 2. Direct fetch from cloud
+    fetchReportsDirectly(false);
 
-    // 2. Connect to Firestore cloud stream
+    // 3. Set up onSnapshot listener
     const reportsRef = collection(db, 'reports');
-    const q = query(reportsRef, orderBy('createdAt', 'desc'));
-
     const unsubscribe = onSnapshot(
-      q,
+      reportsRef,
       (snapshot) => {
-        clearTimeout(timer);
         const loaded: MedicalCenterReport[] = [];
         snapshot.forEach((d) => {
-          const data = d.data() as MedicalCenterReport;
-          loaded.push({
-            ...data,
-            id: d.id,
-          });
+          loaded.push({ ...(d.data() as MedicalCenterReport), id: d.id });
         });
+        loaded.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         setReports(loaded);
+        setConnectionStatus('connected');
         setIsLoading(false);
       },
       (err) => {
-        clearTimeout(timer);
-        console.warn('Firestore snapshot note:', err);
+        console.warn('onSnapshot note:', err);
         setIsLoading(false);
       }
     );
 
-    // Auto-sync any previously stored local reports to the Firestore cloud database
-    const syncLocalToFirestore = async () => {
+    // 4. Auto-sync any previously unsynced local reports
+    const syncLocal = async () => {
       try {
         const stored = JSON.parse(localStorage.getItem('krf_reports') || '[]');
         if (!Array.isArray(stored) || stored.length === 0) return;
-
         let updated = false;
-        const reportsCol = collection(db, 'reports');
-
         for (const item of stored) {
           if (!item.syncedToCloud) {
             const reportData = {
@@ -255,7 +245,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               status: item.status || 'pending',
               createdAt: item.timestamp || item.createdAt || new Date().toISOString(),
             };
-            await addDoc(reportsCol, reportData);
+            await addDoc(reportsRef, reportData);
             item.syncedToCloud = true;
             updated = true;
           }
@@ -263,17 +253,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         if (updated) {
           localStorage.setItem('krf_reports', JSON.stringify(stored));
         }
-      } catch (e) {
-        console.warn('Auto-sync notice:', e);
-      }
+      } catch (e) {}
     };
-    syncLocalToFirestore();
+    syncLocal();
 
-    return () => {
-      clearTimeout(timer);
-      unsubscribe();
-    };
-  }, [isAuthenticated]);
+    return () => unsubscribe();
+  }, [isAuthenticated, fetchReportsDirectly]);
 
   // Handle Username/Password Login
   const handlePasswordLogin = (e: React.FormEvent) => {
@@ -294,30 +279,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
-  // Handle Google Auth
-  const handleGoogleLogin = async () => {
-    setIsGoogleSigningIn(true);
-    setLoginError('');
-    try {
-      const provider = new GoogleAuthProvider();
-      const res = await signInWithPopup(auth, provider);
-      if (res.user) {
-        setIsAuthenticated(true);
-        sessionStorage.setItem(ADMIN_STORAGE_KEY, 'true');
-        showToast(`خوش آمدید ${res.user.displayName || res.user.email}`);
-      }
-    } catch (err: any) {
-      console.error('Google Sign-in error:', err);
-      setLoginError('خطا در ورود با گوگل: ' + (err.message || 'ناموفق'));
-    } finally {
-      setIsGoogleSigningIn(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-    } catch {}
+  const handleLogout = () => {
     setIsAuthenticated(false);
     sessionStorage.removeItem(ADMIN_STORAGE_KEY);
     showToast('از پنل مدیریت خارج شدید');
@@ -334,7 +296,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     showToast('رمز عبور ادمین با موفقیت تغییر کرد');
   };
 
-  // Status changer
+  // Status changer for individual report
   const handleUpdateStatus = async (reportId: string | undefined, newStatus: ReportStatus) => {
     if (!reportId) return;
 
@@ -379,93 +341,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
-  // Export to Excel (CSV with UTF-8 BOM for Persian)
-  const handleExportCSV = () => {
-    if (filteredReports.length === 0) {
-      showToast('هیچ گزارشی برای خروجی وجود ندارد');
-      return;
-    }
-
-    const headers = [
-      'شناسه گزارش',
-      'کد مرکز',
-      'نام مرکز درمانی',
-      'دسته‌بندی',
-      'موضوع گزارش',
-      'توضیحات و مشخصات جدید',
-      'شماره تماس گزارش‌دهنده',
-      'وضعیت بررسی',
-      'تاریخ و ساعت ثبت',
-    ];
-
-    const rows = filteredReports.map((r, index) => [
-      String(index + 1),
-      String(r.centerId || ''),
-      `"${(r.centerName || '').replace(/"/g, '""')}"`,
-      `"${(r.centerType || '').replace(/"/g, '""')}"`,
-      `"${(r.reasonLabel || REASON_LABELS[r.reason] || r.reason).replace(/"/g, '""')}"`,
-      `"${(r.details || '').replace(/"/g, '""')}"`,
-      `"${(r.reporterContact || '').replace(/"/g, '""')}"`,
-      `"${STATUS_CONFIG[r.status]?.label || r.status}"`,
-      `"${formatPersianDate(r.createdAt)}"`,
-    ]);
-
-    const csvContent =
-      '\uFEFF' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\r\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    const nowStr = new Date().toISOString().slice(0, 10);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `gozaresh_marakez_karafarin_${nowStr}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast('فایل اکسل با موفقیت دانلود شد');
-  };
-
-  // Copy structured TSV for direct paste into Google Sheets
-  const handleCopyForGoogleSheets = () => {
-    if (filteredReports.length === 0) {
-      showToast('گزارشی برای کپی وجود ندارد');
-      return;
-    }
-
-    const headers = [
-      'ردیف',
-      'کد مرکز',
-      'نام مرکز درمانی',
-      'دسته‌بندی',
-      'نوع مغایرت',
-      'توضیحات تکمیلی',
-      'شماره گزارش‌دهنده',
-      'وضعیت',
-      'تاریخ ثبت',
-    ];
-
-    const rows = filteredReports.map((r, i) => [
-      i + 1,
-      r.centerId || '',
-      r.centerName || '',
-      r.centerType || '',
-      r.reasonLabel || REASON_LABELS[r.reason] || r.reason,
-      (r.details || '').replace(/\n/g, ' '),
-      r.reporterContact || '',
-      STATUS_CONFIG[r.status]?.label || r.status,
-      formatPersianDate(r.createdAt),
-    ]);
-
-    const tsvText = [headers.join('\t'), ...rows.map((row) => row.join('\t'))].join('\n');
-
-    navigator.clipboard.writeText(tsvText).then(() => {
-      setCopiedForSheets(true);
-      showToast('داده‌ها کپی شد! می‌توانید مستقیماً در Google Sheets پیست (Ctrl+V) کنید');
-      setTimeout(() => setCopiedForSheets(false), 2500);
-    });
-  };
-
-  // Filtered reports
+  // Filtered raw reports
   const filteredReports = useMemo(() => {
     return reports.filter((r) => {
       if (statusFilter !== 'all' && r.status !== statusFilter) return false;
@@ -482,6 +358,47 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     });
   }, [reports, statusFilter, reasonFilter, searchQuery]);
 
+  // Grouped by Center (جلوگیری از تکرار نام مراکز در سطرها)
+  const groupedCenters = useMemo(() => {
+    const map = new Map<number, GroupedCenterReports>();
+
+    for (const r of filteredReports) {
+      const cId = r.centerId || 0;
+      if (!map.has(cId)) {
+        map.set(cId, {
+          centerId: cId,
+          centerName: r.centerName,
+          centerType: r.centerType || 'مرکز درمانی',
+          reportCount: 0,
+          reasonsSummary: {},
+          latestReportDate: r.createdAt,
+          pendingCount: 0,
+          reports: [],
+        });
+      }
+
+      const item = map.get(cId)!;
+      item.reportCount += 1;
+      item.reports.push(r);
+
+      const rLabel = r.reasonLabel || REASON_LABELS[r.reason] || r.reason;
+      item.reasonsSummary[rLabel] = (item.reasonsSummary[rLabel] || 0) + 1;
+
+      if (r.status === 'pending') {
+        item.pendingCount += 1;
+      }
+
+      if (new Date(r.createdAt).getTime() > new Date(item.latestReportDate).getTime()) {
+        item.latestReportDate = r.createdAt;
+      }
+    }
+
+    // Sort by reportCount desc (مراکزی که بیشترین گزارش دارند در صدر لیست)
+    return Array.from(map.values()).sort(
+      (a, b) => b.reportCount - a.reportCount || b.pendingCount - a.pendingCount
+    );
+  }, [filteredReports]);
+
   // Status counts
   const counts = useMemo(() => {
     return {
@@ -489,11 +406,98 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       pending: reports.filter((r) => r.status === 'pending').length,
       verified: reports.filter((r) => r.status === 'verified').length,
       applied: reports.filter((r) => r.status === 'applied').length,
-      rejected: reports.filter((r) => r.status === 'rejected').length,
+      uniqueCenters: new Set(reports.map((r) => r.centerId)).size,
     };
   }, [reports]);
 
-  // LOGIN SCREEN
+  // Export Grouped Centers to CSV (یک سطر برای هر مرکز با ستون تعداد گزارش)
+  const handleExportGroupedCSV = () => {
+    if (groupedCenters.length === 0) {
+      showToast('گزارشی برای خروجی وجود ندارد');
+      return;
+    }
+
+    const headers = [
+      'ردیف',
+      'کد مرکز',
+      'نام مرکز درمانی',
+      'دسته‌بندی',
+      'تعداد کل گزارش‌های ثبت‌شده',
+      'گزارش‌های در انتظار بررسی',
+      'خلاصه موضوعات گزارش',
+      'تاریخ آخرین گزارش',
+    ];
+
+    const rows = groupedCenters.map((g, index) => {
+      const reasonsStr = Object.entries(g.reasonsSummary)
+        .map(([k, v]) => `${k} (${v} مورد)`)
+        .join(' - ');
+
+      return [
+        String(index + 1),
+        String(g.centerId || ''),
+        `"${(g.centerName || '').replace(/"/g, '""')}"`,
+        `"${(g.centerType || '').replace(/"/g, '""')}"`,
+        String(g.reportCount),
+        String(g.pendingCount),
+        `"${reasonsStr.replace(/"/g, '""')}"`,
+        `"${formatPersianDate(g.latestReportDate)}"`,
+      ];
+    });
+
+    const csvContent =
+      '\uFEFF' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\r\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `marakez_por_gozaresh_karafarin_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('فایل اکسل تجمیعی مراکز دانلود شد');
+  };
+
+  // Copy structured TSV for Google Sheets
+  const handleCopyForGoogleSheets = () => {
+    if (groupedCenters.length === 0) {
+      showToast('گزارشی برای کپی وجود ندارد');
+      return;
+    }
+
+    const headers = [
+      'ردیف',
+      'کد مرکز',
+      'نام مرکز درمانی',
+      'دسته‌بندی',
+      'تعداد گزارش',
+      'در انتظار',
+      'موضوعات',
+      'تاریخ آخرین گزارش',
+    ];
+
+    const rows = groupedCenters.map((g, i) => [
+      i + 1,
+      g.centerId,
+      g.centerName,
+      g.centerType,
+      g.reportCount,
+      g.pendingCount,
+      Object.entries(g.reasonsSummary).map(([k, v]) => `${k}: ${v}`).join(' | '),
+      formatPersianDate(g.latestReportDate),
+    ]);
+
+    const tsvText = [headers.join('\t'), ...rows.map((row) => row.join('\t'))].join('\n');
+
+    navigator.clipboard.writeText(tsvText).then(() => {
+      setCopiedForSheets(true);
+      showToast('جدول تجمیعی کپی شد! می‌توانید مستقیماً در Google Sheets پیست کنید');
+      setTimeout(() => setCopiedForSheets(false), 2500);
+    });
+  };
+
+  // LOGIN SCREEN (Clean, username/password only, no broken Google button)
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
@@ -516,44 +520,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </div>
             )}
 
-            {/* Quick Google Sign In for Admin */}
-            <div className="mb-5">
-              <button
-                type="button"
-                onClick={handleGoogleLogin}
-                disabled={isGoogleSigningIn}
-                className="w-full py-3 px-4 rounded-xl border border-slate-300 hover:border-[#0a4c9a] bg-slate-50 hover:bg-blue-50 text-slate-800 text-xs font-bold flex items-center justify-center gap-2.5 transition shadow-xs"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                  />
-                </svg>
-                <span>ورود مستقیم مدیر با حساب گوگل (تأیید ابری)</span>
-              </button>
-
-              <div className="relative my-4 text-center">
-                <hr className="border-slate-200" />
-                <span className="absolute -top-2.5 right-1/2 translate-x-1/2 bg-white px-2 text-[10px] text-slate-400 font-bold">
-                  یا ورود با نام کاربری و رمز
-                </span>
-              </div>
-            </div>
-
-            <form onSubmit={handlePasswordLogin} className="space-y-3.5">
+            <form onSubmit={handlePasswordLogin} className="space-y-4">
               <div>
                 <label className="block text-slate-700 text-xs font-bold mb-1">
                   نام کاربری:
@@ -564,7 +531,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   onChange={(e) => setUsernameInput(e.target.value)}
                   placeholder="admin"
                   dir="ltr"
-                  className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 outline-none focus:bg-white focus:border-[#0a4c9a]"
+                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 outline-none focus:bg-white focus:border-[#0a4c9a]"
                 />
               </div>
 
@@ -579,18 +546,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     onChange={(e) => setPasswordInput(e.target.value)}
                     placeholder="رمز ورود..."
                     dir="ltr"
-                    className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 outline-none focus:bg-white focus:border-[#0a4c9a]"
+                    className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 outline-none focus:bg-white focus:border-[#0a4c9a]"
                   />
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3.5 pointer-events-none" />
                 </div>
-                <div className="text-[10px] text-slate-400 mt-1">
-                  پیش‌فرض: <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-600">admin</code> / <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-600">{DEFAULT_PASSWORD}</code>
+                <div className="text-[10px] text-slate-400 mt-1.5 flex items-center justify-between">
+                  <span>پیش‌فرض: <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-600 font-bold">admin</code></span>
+                  <span>رمز: <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-600 font-bold">{DEFAULT_PASSWORD}</code></span>
                 </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3 rounded-xl bg-[#0a4c9a] hover:bg-blue-900 text-white font-bold text-xs flex items-center justify-center gap-2 transition shadow-sm"
+                className="w-full py-3.5 rounded-xl bg-[#0a4c9a] hover:bg-blue-900 text-white font-bold text-xs flex items-center justify-center gap-2 transition shadow-sm"
               >
                 <UserCheck className="w-4 h-4" />
                 <span>ورود به پنل مدیریت</span>
@@ -624,11 +592,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
             <div>
               <h1 className="text-sm font-black text-slate-900">
-                مدیریت گزارش‌های مراکز درمانی بیمه کارآفرین
+                مدیریت گزارش‌های تغییر مشخصات مراکز
               </h1>
-              <span className="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                متصل به پایگاه داده ابری (همگام‌سازی لحظه‌ای)
+              <span className="text-[11px] font-bold flex items-center gap-1.5">
+                {connectionStatus === 'connected' ? (
+                  <span className="text-emerald-600 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    سرور ابری متصل است ({toFa(reports.length)} گزارش فعال)
+                  </span>
+                ) : connectionStatus === 'connecting' ? (
+                  <span className="text-amber-600 flex items-center gap-1">
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                    در حال اتصال به سرور ابری...
+                  </span>
+                ) : (
+                  <span className="text-slate-500 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-slate-400" />
+                    حالت آفلاین (استفاده از حافظه دستگاه)
+                  </span>
+                )}
               </span>
             </div>
           </div>
@@ -676,11 +658,21 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
             <div className="flex items-center justify-between text-slate-500 text-xs mb-1">
-              <span>کل گزارش‌ها</span>
+              <span>مراکز دارای گزارش</span>
+              <Building2 className="w-4 h-4 text-slate-400" />
+            </div>
+            <div className="text-2xl font-black text-slate-900 tabular-nums">
+              {toFa(counts.uniqueCenters)} <span className="text-xs font-normal text-slate-400">مرکز</span>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+            <div className="flex items-center justify-between text-slate-500 text-xs mb-1">
+              <span>مجموع کل گزارش‌ها</span>
               <FileSpreadsheet className="w-4 h-4 text-slate-400" />
             </div>
             <div className="text-2xl font-black text-slate-900 tabular-nums">
-              {toFa(counts.total)}
+              {toFa(counts.total)} <span className="text-xs font-normal text-slate-400">گزارش</span>
             </div>
           </div>
 
@@ -691,16 +683,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
             <div className="text-2xl font-black text-amber-700 tabular-nums">
               {toFa(counts.pending)}
-            </div>
-          </div>
-
-          <div className="bg-white p-4 rounded-2xl border border-blue-200 shadow-xs bg-blue-50/20">
-            <div className="flex items-center justify-between text-blue-700 text-xs mb-1">
-              <span>تأیید شده</span>
-              <CheckCircle className="w-4 h-4 text-blue-600" />
-            </div>
-            <div className="text-2xl font-black text-blue-700 tabular-nums">
-              {toFa(counts.verified)}
             </div>
           </div>
 
@@ -715,40 +697,69 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </div>
         </div>
 
-        {/* Toolbar & Export Actions */}
+        {/* View Mode Toggle & Export Toolbar */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          {/* View Mode Tabs */}
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+            <button
+              onClick={() => setViewMode('grouped')}
+              className={`py-2 px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+                viewMode === 'grouped'
+                  ? 'bg-white text-[#0a4c9a] shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>تجمیع بر اساس مرکز درمانی (ستون تعداد گزارش)</span>
+            </button>
+            <button
+              onClick={() => setViewMode('detailed')}
+              className={`py-2 px-3 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+                viewMode === 'detailed'
+                  ? 'bg-white text-[#0a4c9a] shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>فهرست تک‌تک گزارش‌ها</span>
+            </button>
+          </div>
+
+          {/* Action buttons */}
           <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={handleExportCSV}
-              className="py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold flex items-center gap-2 transition shadow-xs"
+              onClick={handleExportGroupedCSV}
+              className="py-2.5 px-3.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-xs"
             >
               <Download className="w-4 h-4" />
-              <span>خروجی اکسل (CSV فارسی)</span>
+              <span>خروجی اکسل تجمیعی (CSV)</span>
             </button>
 
             <button
               onClick={handleCopyForGoogleSheets}
-              className="py-2.5 px-4 rounded-xl border border-slate-300 hover:border-[#0a4c9a] hover:bg-blue-50 text-slate-800 text-xs font-bold flex items-center gap-2 transition"
+              className="py-2.5 px-3.5 rounded-xl border border-slate-300 hover:border-[#0a4c9a] hover:bg-blue-50 text-slate-800 text-xs font-bold flex items-center gap-1.5 transition"
             >
               {copiedForSheets ? (
                 <>
                   <Check className="w-4 h-4 text-emerald-600" />
-                  <span className="text-emerald-700 font-bold">کپی شد! آماده پیست در Google Sheets</span>
+                  <span className="text-emerald-700 font-bold">کپی شد! پیست در Google Sheets</span>
                 </>
               ) : (
                 <>
                   <Copy className="w-4 h-4 text-slate-500" />
-                  <span>کپی داده‌ها برای Google Sheets</span>
+                  <span>کپی برای Google Sheets</span>
                 </>
               )}
             </button>
-          </div>
 
-          <div className="text-xs text-slate-500 flex items-center gap-1.5 mr-auto">
-            <span>تعداد نتایج فیلتر:</span>
-            <strong className="text-slate-800 font-black tabular-nums">
-              {toFa(filteredReports.length)}
-            </strong>
+            <button
+              onClick={() => fetchReportsDirectly(true)}
+              disabled={isRefreshing}
+              className="py-2.5 px-3 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-[#0a4c9a] text-xs font-bold flex items-center gap-1.5 transition"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span>همگام‌سازی ابری</span>
+            </button>
           </div>
         </div>
 
@@ -800,21 +811,251 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </div>
         </div>
 
-        {/* Reports List */}
+        {/* CONTENT SECTION */}
         {isLoading ? (
           <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-500 text-xs">
             <RefreshCw className="w-6 h-6 animate-spin text-[#0a4c9a] mx-auto mb-2" />
-            <span>در حال دریافت گزارش‌ها از پایگاه ابری فایربیس...</span>
+            <span>در حال دریافت گزارش‌ها از پایگاه داده ابری...</span>
           </div>
-        ) : filteredReports.length === 0 ? (
+        ) : reports.length === 0 ? (
           <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-2">
             <HelpCircle className="w-10 h-10 text-slate-300 mx-auto" />
-            <h3 className="text-sm font-bold text-slate-800">هیچ گزارشی یافت نشد</h3>
+            <h3 className="text-sm font-bold text-slate-800">هنوز هیچ گزارشی ثبت نشده است</h3>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              هنوز گزارشی با این فیلترها ثبت نشده است. به محض ارسال گزارش توسط کاربران در اپلیکیشن، بلافاصله در این جدول نمایان خواهد شد.
+              به محض اینکه کاربران در اپلیکیشن خطایی را برای یک مرکز گزارش کنند، در این جدول ظاهر خواهد شد.
             </p>
           </div>
+        ) : viewMode === 'grouped' ? (
+          /* ========================================================
+             1. GROUPED VIEW (یک سطر برای هر مرکز + ستون تعداد گزارش)
+             ======================================================== */
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-xs text-slate-600 px-1">
+              <span className="font-bold">
+                تعداد مراکز دارای مغایرت: <strong className="text-slate-900 tabular-nums">{toFa(groupedCenters.length)}</strong> مرکز
+              </span>
+              <span className="text-[11px] text-slate-400">مرتب‌شده بر اساس بیشترین گزارش‌های دریافتی</span>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold">
+                    <tr>
+                      <th className="py-3 px-4 w-12 text-center">ردیف</th>
+                      <th className="py-3 px-4">نام مرکز درمانی و نوع</th>
+                      <th className="py-3 px-4 text-center">تعداد گزارش</th>
+                      <th className="py-3 px-4">موضوعات گزارش‌شده</th>
+                      <th className="py-3 px-4 text-center">وضعیت پیگیری</th>
+                      <th className="py-3 px-4">آخرین گزارش</th>
+                      <th className="py-3 px-4 w-28 text-center">جزئیات</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {groupedCenters.map((group, idx) => {
+                      const isExpanded = expandedCenterId === group.centerId;
+                      return (
+                        <React.Fragment key={group.centerId}>
+                          <tr className={`hover:bg-slate-50/80 transition ${isExpanded ? 'bg-blue-50/30' : ''}`}>
+                            <td className="py-3.5 px-4 text-center font-bold text-slate-400 tabular-nums">
+                              {toFa(idx + 1)}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <div className="font-extrabold text-slate-900 text-sm">
+                                {group.centerName}
+                              </div>
+                              <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
+                                <span>کد #{toFa(group.centerId)}</span>
+                                <span>•</span>
+                                <span>{group.centerType}</span>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-blue-100 text-[#0a4c9a] font-black text-xs tabular-nums border border-blue-200">
+                                {toFa(group.reportCount)} گزارش
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <div className="flex flex-wrap gap-1">
+                                {Object.entries(group.reasonsSummary).map(([rTitle, rQty]) => (
+                                  <span
+                                    key={rTitle}
+                                    className="inline-block bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[11px] font-medium"
+                                  >
+                                    {rTitle} <span className="text-[#0a4c9a] font-bold">({toFa(rQty)})</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              {group.pendingCount > 0 ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                  <Clock className="w-3 h-3" />
+                                  <span>{toFa(group.pendingCount)} در انتظار بررسی</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  <CheckCircle className="w-3 h-3" />
+                                  <span>بررسی‌شده</span>
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4 text-[11px] text-slate-500 tabular-nums">
+                              {formatPersianDate(group.latestReportDate)}
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              <button
+                                onClick={() =>
+                                  setExpandedCenterId(isExpanded ? null : group.centerId)
+                                }
+                                className="py-1.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-blue-50 hover:text-[#0a4c9a] hover:border-blue-300 font-bold text-xs inline-flex items-center gap-1 transition"
+                              >
+                                <span>{isExpanded ? 'بستن' : 'مشاهده'}</span>
+                                {isExpanded ? (
+                                  <ChevronUp className="w-3.5 h-3.5" />
+                                ) : (
+                                  <ChevronDown className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </td>
+                          </tr>
+
+                          {/* Expanded Reports for this Center */}
+                          {isExpanded && (
+                            <tr>
+                              <td colSpan={7} className="bg-slate-50/70 p-4 border-y border-slate-200">
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                                      <AlertCircle className="w-4 h-4 text-[#0a4c9a]" />
+                                      <span>
+                                        ریز گزارش‌های ثبت‌شده برای «{group.centerName}» ({toFa(group.reports.length)} مورد):
+                                      </span>
+                                    </h4>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 gap-2.5">
+                                    {group.reports.map((rep, rIndex) => {
+                                      const statusCfg =
+                                        STATUS_CONFIG[rep.status] || STATUS_CONFIG.pending;
+                                      return (
+                                        <div
+                                          key={rep.id || rIndex}
+                                          className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-2 shadow-2xs"
+                                        >
+                                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                                            <div className="flex items-center gap-2">
+                                              <span className="font-extrabold text-[#0a4c9a] text-xs">
+                                                گزارش #{toFa(rIndex + 1)}
+                                              </span>
+                                              <span className="text-slate-300">•</span>
+                                              <span className="font-bold text-slate-700 text-xs">
+                                                موضوع: {rep.reasonLabel || REASON_LABELS[rep.reason] || rep.reason}
+                                              </span>
+                                              <span className="text-slate-300">•</span>
+                                              <span className="text-[11px] text-slate-400">
+                                                {formatPersianDate(rep.createdAt)}
+                                              </span>
+                                            </div>
+
+                                            <div className="flex items-center gap-2">
+                                              <span
+                                                className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${statusCfg.bg} ${statusCfg.color} ${statusCfg.border}`}
+                                              >
+                                                {statusCfg.label}
+                                              </span>
+                                              <button
+                                                onClick={() => handleDeleteReport(rep.id)}
+                                                className="text-slate-400 hover:text-red-600 p-1 rounded-md"
+                                                title="حذف این گزارش"
+                                              >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                              </button>
+                                            </div>
+                                          </div>
+
+                                          <div className="text-xs text-slate-700 leading-relaxed">
+                                            {rep.details ? (
+                                              <p className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                                                {rep.details}
+                                              </p>
+                                            ) : (
+                                              <span className="text-slate-400 italic text-[11px]">
+                                                توضیحات متنی ثبت نشده است.
+                                              </span>
+                                            )}
+                                          </div>
+
+                                          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
+                                            {rep.reporterContact ? (
+                                              <div className="flex items-center gap-1.5 text-slate-600">
+                                                <Phone className="w-3.5 h-3.5 text-slate-400" />
+                                                <span className="text-[11px]">تماس کاربر:</span>
+                                                <a
+                                                  href={`tel:${rep.reporterContact}`}
+                                                  className="font-bold text-[#0a4c9a] dir-ltr text-xs"
+                                                >
+                                                  {rep.reporterContact}
+                                                </a>
+                                              </div>
+                                            ) : (
+                                              <span />
+                                            )}
+
+                                            <div className="flex items-center gap-1 text-[11px]">
+                                              <span className="text-slate-400 ml-1">تغییر وضعیت:</span>
+                                              <button
+                                                onClick={() => handleUpdateStatus(rep.id, 'pending')}
+                                                className={`px-2 py-0.5 rounded text-[11px] font-bold border ${
+                                                  rep.status === 'pending'
+                                                    ? 'bg-amber-600 text-white border-amber-600'
+                                                    : 'bg-white text-slate-600 border-slate-200'
+                                                }`}
+                                              >
+                                                در انتظار
+                                              </button>
+                                              <button
+                                                onClick={() => handleUpdateStatus(rep.id, 'verified')}
+                                                className={`px-2 py-0.5 rounded text-[11px] font-bold border ${
+                                                  rep.status === 'verified'
+                                                    ? 'bg-blue-600 text-white border-blue-600'
+                                                    : 'bg-white text-slate-600 border-slate-200'
+                                                }`}
+                                              >
+                                                تأیید شد
+                                              </button>
+                                              <button
+                                                onClick={() => handleUpdateStatus(rep.id, 'applied')}
+                                                className={`px-2 py-0.5 rounded text-[11px] font-bold border ${
+                                                  rep.status === 'applied'
+                                                    ? 'bg-emerald-600 text-white border-emerald-600'
+                                                    : 'bg-white text-slate-600 border-slate-200'
+                                                }`}
+                                              >
+                                                اصلاح شد
+                                              </button>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         ) : (
+          /* ========================================================
+             2. DETAILED VIEW (سطر به سطر تمام گزارش‌ها)
+             ======================================================== */
           <div className="space-y-3">
             {filteredReports.map((report) => {
               const statusCfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.pending;
@@ -825,7 +1066,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   key={report.id}
                   className="bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-5 shadow-xs transition hover:border-[#0a4c9a]/40 space-y-3"
                 >
-                  {/* Top Bar of Card */}
                   <div className="flex flex-wrap items-start justify-between gap-2 pb-3 border-b border-slate-100">
                     <div>
                       <div className="flex items-center gap-2">
@@ -868,7 +1108,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </div>
                   </div>
 
-                  {/* Body Content */}
                   <div className="space-y-2 text-xs">
                     {report.details ? (
                       <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
@@ -899,7 +1138,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     )}
                   </div>
 
-                  {/* Actions / Change Status Buttons */}
                   <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100">
                     <span className="text-[11px] text-slate-500 font-bold">
                       تغییر وضعیت پیگیری:
@@ -952,19 +1190,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             })}
           </div>
         )}
-
-        {/* Integration tip for Google Sheets */}
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-2xl border border-blue-100 text-xs text-slate-700 space-y-1.5">
-          <div className="flex items-center gap-1.5 font-bold text-[#0a4c9a]">
-            <FileSpreadsheet className="w-4 h-4 text-[#0a4c9a]" />
-            <span>راهنمای استفاده در Google Sheets و Microsoft Excel:</span>
-          </div>
-          <p className="text-[11px] text-slate-600 leading-relaxed">
-            ۱. برای خروجی اکسل، روی دکمه <strong>«خروجی اکسل (CSV فارسی)»</strong> کلیک کنید؛ این فایل به صورت UTF-8 استاندارد ذخیره می‌شود تا حروف فارسی در نرم‌افزار Excel کاملاً خوانا باز شوند.
-            <br />
-            ۲. برای گوگل‌شیت، دکمه <strong>«کپی داده‌ها برای Google Sheets»</strong> را بزنید، سپس یک شیت خالی در گوگل باز کرده و در اولین سلول، کلید <code>Ctrl + V</code> را بفشارید؛ تمام ستون‌ها و ردیف‌ها به شکل مرتب جایگذاری می‌شوند.
-          </p>
-        </div>
       </main>
 
       {/* Change Password Modal */}
