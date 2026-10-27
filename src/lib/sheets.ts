@@ -2,12 +2,17 @@ import { MedicalCenterReport } from '../types';
 
 export const SHEETS_STORAGE_KEY = 'krf_sheets_webhook_url';
 
-// Default / fallback webhook URL (can be customized by admin inside /admin panel)
-export const DEFAULT_SHEETS_WEBHOOK_URL = '';
+// Default / fallback webhook URL (permanently connected to user's Google Sheet)
+export const DEFAULT_SHEETS_WEBHOOK_URL =
+  'https://script.google.com/macros/s/AKfycby9pU0rPlBI8AKfXbkSJXodnBVY6PjVXUYHxfLZMynaIXoSNDci7ah4TimCfWZTgsN2cA/exec';
 
 export function getSheetsWebhookUrl(): string {
   try {
-    return localStorage.getItem(SHEETS_STORAGE_KEY) || DEFAULT_SHEETS_WEBHOOK_URL;
+    const custom = localStorage.getItem(SHEETS_STORAGE_KEY);
+    if (custom && custom.trim().length > 15) {
+      return custom.trim();
+    }
+    return DEFAULT_SHEETS_WEBHOOK_URL;
   } catch {
     return DEFAULT_SHEETS_WEBHOOK_URL;
   }

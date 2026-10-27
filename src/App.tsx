@@ -134,17 +134,27 @@ export default function App() {
       };
 
       // 1. Submit to Google Sheets (unblocked in Iran, zero sanction)
-      submitReportToSheets(reportData).catch((e) => console.warn('Sheets submit notice:', e));
+      const sheetsPromise = submitReportToSheets(reportData).catch((e) => {
+        console.warn('Sheets submit notice:', e);
+        return false;
+      });
 
-      // 2. Submit to Firestore cloud database
+      // 2. Submit to Firestore cloud database (with quick timeout so slow connections do not stall)
       let docCreated = false;
       try {
         const reportsCol = collection(db, 'reports');
-        await addDoc(reportsCol, reportData);
-        docCreated = true;
+        await Promise.race([
+          addDoc(reportsCol, reportData).then(() => {
+            docCreated = true;
+          }),
+          new Promise((res) => setTimeout(res, 1800)),
+        ]);
       } catch (err) {
         console.warn('Firestore cloud write notice:', err);
       }
+
+      // Ensure sheets submission is sent
+      await sheetsPromise;
 
       // 3. Backup to local queue
       try {

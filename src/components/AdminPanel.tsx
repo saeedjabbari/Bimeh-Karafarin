@@ -157,21 +157,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       let loaded: MedicalCenterReport[] = [];
       let source: 'sheets' | 'firestore' | 'local' = 'local';
 
-      // 1. Try Google Sheets Webhook first (works 100% in Iran, no sanctions)
+      // 1. Try Google Sheets Webhook first (works 100% in Iran across all ISPs and devices)
+      let sheetsQueried = false;
       const webhookUrl = getSheetsWebhookUrl();
       if (webhookUrl) {
         try {
           const sheetsReports = await fetchReportsFromSheets();
+          sheetsQueried = true;
+          source = 'sheets';
           if (sheetsReports && sheetsReports.length > 0) {
-            loaded = sheetsReports;
-            source = 'sheets';
+            loaded = [...sheetsReports];
           }
         } catch (e) {
           console.warn('Sheets fetch warning:', e);
         }
       }
 
-      // 2. Also try Firestore and merge
+      // 2. Also try Firestore and merge if available
       try {
         const reportsRef = collection(db, 'reports');
         let snap;
@@ -188,14 +190,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         });
 
         if (firestoreList.length > 0) {
-          if (loaded.length === 0) {
+          if (loaded.length === 0 && !sheetsQueried) {
             loaded = firestoreList;
             source = 'firestore';
           } else {
-            // Merge unique reports
-            const existingKeys = new Set(loaded.map((r) => `${r.centerId}_${r.createdAt}`));
+            // Merge unique reports from Firestore
+            const existingKeys = new Set(
+              loaded.map((r) => `${r.centerId}_${r.reason}_${r.createdAt.slice(0, 16)}`)
+            );
             for (const fr of firestoreList) {
-              if (!existingKeys.has(`${fr.centerId}_${fr.createdAt}`)) {
+              const k = `${fr.centerId}_${fr.reason}_${(fr.createdAt || '').slice(0, 16)}`;
+              if (!existingKeys.has(k)) {
                 loaded.push(fr);
               }
             }
@@ -205,8 +210,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         console.warn('Firestore fetch notice:', err);
       }
 
-      // 3. Fallback to local storage if both remote sources are empty
-      if (loaded.length === 0) {
+      // 3. Fallback to local storage only if remote sources were unreachable
+      if (loaded.length === 0 && !sheetsQueried) {
         try {
           const localStored = JSON.parse(localStorage.getItem('krf_reports') || '[]');
           if (localStored.length > 0) {
