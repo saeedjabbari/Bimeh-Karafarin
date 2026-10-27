@@ -492,9 +492,6 @@ export default function App() {
                         <span className="text-xs font-extrabold text-slate-800">
                           فیلتر خیابان‌های ارومیه
                         </span>
-                        <span className="text-[10px] bg-orange-100 text-[#F15A31] font-bold px-1.5 py-0.5 rounded-md">
-                          پینترستی
-                        </span>
                       </div>
                       <span className="text-[11px] text-slate-500">
                         {selectedStreet

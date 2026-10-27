@@ -126,7 +126,7 @@ export const Header: React.FC<HeaderProps> = ({
                 ? 'bg-[#F15A31] text-white hover:bg-[#d94a24]'
                 : 'bg-white text-[#0a4c9a] hover:bg-blue-50'
             }`}
-            title="فیلتر خیابان‌های ارومیه (پینترستی)"
+            title="فیلتر خیابان‌های ارومیه"
           >
             <MapPin className="w-4 h-4" />
             <span className="inline max-w-[80px] sm:max-w-none truncate">

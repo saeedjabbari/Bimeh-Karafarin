@@ -46,9 +46,6 @@ export const StreetFilterModal: React.FC<StreetFilterModalProps> = ({
                 <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
                   فیلتر خیابان‌های ارومیه
                 </h2>
-                <span className="text-[10px] bg-orange-100 text-[#F15A31] font-bold px-1.5 py-0.5 rounded-md">
-                  پینترستی
-                </span>
               </div>
               <p className="text-[11px] text-slate-500 mt-0.5">
                 اندازه هر باکس متناسب با تعداد مراکز درمانی در آن خیابان است
