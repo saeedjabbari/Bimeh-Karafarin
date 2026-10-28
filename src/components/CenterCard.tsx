@@ -1,5 +1,5 @@
 import React from 'react';
-import { Phone, Copy, Navigation, Bookmark, BookmarkCheck, MapPin, Search } from 'lucide-react';
+import { Phone, Copy, Navigation, Bookmark, BookmarkCheck, MapPin, Search, Info } from 'lucide-react';
 import { MedicalCenter } from '../data/centers';
 import { fmtPhone, getGoogleMapUrl, getSearchPhoneUrl } from '../utils/persian';
 import { getCategoryMeta } from '../constants/categories';
@@ -26,7 +26,7 @@ export const CenterCard: React.FC<CenterCardProps> = ({
   return (
     <article
       onClick={() => onOpenDetail(center)}
-      className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-sm hover:shadow-md hover:border-blue-200 transition-all cursor-pointer flex flex-col gap-3 group"
+      className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-sm hover:shadow-md hover:border-blue-300 transition-all cursor-pointer flex flex-col gap-3 group"
     >
       {/* Top Header Row */}
       <div className="flex items-start justify-between gap-3">
@@ -95,27 +95,27 @@ export const CenterCard: React.FC<CenterCardProps> = ({
 
       {/* Action Buttons Row */}
       <div
-        className="grid grid-cols-3 gap-2 pt-1"
+        className="grid grid-cols-4 gap-1.5 sm:gap-2 pt-1"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Call or Search Phone Button */}
         {center.phone ? (
           <a
             href={`tel:${center.phone}`}
-            className="min-h-[44px] flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition active:scale-98 shadow-sm"
+            className="min-h-[42px] px-1 sm:px-2 flex items-center justify-center gap-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition active:scale-98 shadow-sm"
           >
-            <Phone className="w-3.5 h-3.5" />
-            <span>تماس</span>
+            <Phone className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">تماس</span>
           </a>
         ) : (
           <a
             href={getSearchPhoneUrl(center.name)}
             target="_blank"
             rel="noopener noreferrer"
-            className="min-h-[44px] flex items-center justify-center gap-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
+            className="min-h-[42px] px-1 sm:px-2 flex items-center justify-center gap-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
           >
-            <Search className="w-3.5 h-3.5" />
-            <span>جستجو</span>
+            <Search className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">جستجو</span>
           </a>
         )}
 
@@ -123,17 +123,17 @@ export const CenterCard: React.FC<CenterCardProps> = ({
         {center.phone ? (
           <button
             onClick={(e) => onCopyPhone(center.phone, e)}
-            className="min-h-[44px] flex items-center justify-center gap-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition active:scale-98"
+            className="min-h-[42px] px-1 sm:px-2 flex items-center justify-center gap-1 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition active:scale-98"
           >
-            <Copy className="w-3.5 h-3.5 text-slate-500" />
-            <span>کپی شماره</span>
+            <Copy className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            <span className="truncate">کپی</span>
           </button>
         ) : (
           <button
             disabled
-            className="min-h-[44px] flex items-center justify-center gap-1.5 rounded-xl bg-slate-50 border border-slate-100 text-slate-400 text-xs font-medium cursor-not-allowed"
+            className="min-h-[42px] px-1 sm:px-2 flex items-center justify-center gap-1 rounded-xl bg-slate-50 border border-slate-100 text-slate-400 text-xs font-medium cursor-not-allowed"
           >
-            <span>بدون تلفن</span>
+            <span className="truncate">بدون تلفن</span>
           </button>
         )}
 
@@ -142,11 +142,22 @@ export const CenterCard: React.FC<CenterCardProps> = ({
           href={mapUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="min-h-[44px] flex items-center justify-center gap-1.5 rounded-xl bg-blue-50 border border-blue-200/80 hover:bg-blue-100 text-[#0a4c9a] text-xs font-bold transition active:scale-98"
+          className="min-h-[42px] px-1 sm:px-2 flex items-center justify-center gap-1 rounded-xl bg-blue-50 border border-blue-200/80 hover:bg-blue-100 text-[#0a4c9a] text-xs font-bold transition active:scale-98"
         >
-          <Navigation className="w-3.5 h-3.5" />
-          <span>مسیریابی</span>
+          <Navigation className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">مسیریابی</span>
         </a>
+
+        {/* Details / Info Button */}
+        <button
+          type="button"
+          onClick={() => onOpenDetail(center)}
+          className="min-h-[42px] px-1 sm:px-2 flex items-center justify-center gap-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition active:scale-98 border border-slate-200/90"
+          title="مشاهده جزئیات کامل مرکز"
+        >
+          <Info className="w-3.5 h-3.5 text-[#0a4c9a] shrink-0" />
+          <span className="truncate">جزئیات</span>
+        </button>
       </div>
     </article>
   );

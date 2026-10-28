@@ -247,7 +247,8 @@ export const CenterDetailModal: React.FC<CenterDetailModalProps> = ({
           </div>
 
           {/* Secondary Actions */}
-          <div className="grid grid-cols-3 gap-2">
+          {/* Secondary Actions */}
+          <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => onToggleSave(center.k)}
               className={`min-h-[42px] rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
@@ -276,19 +277,21 @@ export const CenterDetailModal: React.FC<CenterDetailModalProps> = ({
               <Share2 className="w-3.5 h-3.5" />
               <span>اشتراک‌گذاری</span>
             </button>
-
-            <button
-              onClick={() => {
-                onClose();
-                onOpenReport(center);
-              }}
-              className="min-h-[42px] rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs font-semibold flex items-center justify-center gap-1.5 transition"
-              title="گزارش خطای تلفن یا تغییر آدرس"
-            >
-              <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-              <span>گزارش تغییر</span>
-            </button>
           </div>
+
+          {/* Eye-catching Pastel Orange Report Change Button */}
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              onOpenReport(center);
+            }}
+            className="w-full min-h-[46px] rounded-2xl bg-[#ffedd5] hover:bg-[#fed7aa] active:bg-[#fdba74] text-[#9a3412] border-2 border-[#fdba74] font-extrabold text-xs flex items-center justify-center gap-2 transition-all active:scale-98 shadow-sm"
+            title="گزارش خطای تلفن یا تغییر آدرس"
+          >
+            <AlertCircle className="w-4 h-4 text-[#ea580c] shrink-0" />
+            <span>گزارش تغییر یا مغایرت اطلاعات مرکز</span>
+          </button>
         </div>
       </div>
     </div>

@@ -47,9 +47,6 @@ export const StreetFilterModal: React.FC<StreetFilterModalProps> = ({
                   فیلتر خیابان‌های ارومیه
                 </h2>
               </div>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                اندازه هر باکس متناسب با تعداد مراکز درمانی در آن خیابان است
-              </p>
             </div>
           </div>
           <button
