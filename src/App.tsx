@@ -9,11 +9,12 @@ import { BottomNav } from './components/BottomNav';
 import { Toast } from './components/Toast';
 import { OfflineBanner } from './components/OfflineBanner';
 import { IOSInstallGuideModal } from './components/IOSInstallGuideModal';
+import { QuickOnboardingModal } from './components/QuickOnboardingModal';
 import { MEDICAL_CENTERS, MedicalCenter } from './data/centers';
 import { TabType, ReportReason } from './types';
 import { norm, squash, toFa } from './utils/persian';
 import { usePWAInstall } from './hooks/usePWAInstall';
-import { ExternalLink, X, RotateCcw, Bookmark, Info, Sparkles } from 'lucide-react';
+import { ExternalLink, X, RotateCcw, Bookmark, Info, Sparkles, Search, MapPin } from 'lucide-react';
 import { collection, addDoc, doc, getDocFromServer } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import { AdminPanel } from './components/AdminPanel';
@@ -21,6 +22,16 @@ import { submitReportToSheets } from './lib/sheets';
 
 const STORAGE_KEY = 'krf_saved';
 const PORTAL_URL = 'https://sinad.karafarin-insurance.ir/DarmanAfzar.Customer/index.html';
+
+// Fisher-Yates shuffle to randomize centers on each refresh / session
+function shuffleCenters(centers: MedicalCenter[]): MedicalCenter[] {
+  const shuffled = [...centers];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
 
 export default function App() {
   // Navigation & Tabs
@@ -37,12 +48,45 @@ export default function App() {
   const [isStreetFilterOpen, setIsStreetFilterOpen] = useState(false);
   const [centerForReport, setCenterForReport] = useState<MedicalCenter | null>(null);
   const [isIOSGuideOpen, setIsIOSGuideOpen] = useState(false);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+
+  // Auto-open Quick Onboarding only on user's first visit
+  useEffect(() => {
+    try {
+      const seen = localStorage.getItem('krf_onboarding_seen');
+      if (!seen) {
+        const timer = setTimeout(() => {
+          setIsOnboardingOpen(true);
+        }, 400);
+        return () => clearTimeout(timer);
+      }
+    } catch {}
+  }, []);
 
   // Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // PWA install
   const { isInstallable, isIOS, install } = usePWAInstall();
+
+  // Scroll & Display Limit (encouraging search)
+  const [visibleLimit, setVisibleLimit] = useState(10);
+
+  const handleFocusSearch = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => {
+      const input = document.getElementById('main-search-input') as HTMLInputElement | null;
+      if (input) {
+        input.focus();
+        input.select?.();
+      }
+    }, 200);
+  }, []);
+
+  // Reset scroll limit whenever search or category filters change
+  useEffect(() => {
+    setVisibleLimit(10);
+  }, [query, selectedType, selectedStreet, onlyNightShift, activeTab]);
 
   // Bookmarks (Saved)
   const [saved, setSaved] = useState<Set<number>>(() => {
@@ -224,9 +268,14 @@ export default function App() {
     }
   }, [showToast]);
 
-  // Pre-indexed items
+  // Randomize centers on each fresh session / page load
+  const randomizedCenters = useMemo(() => {
+    return shuffleCenters(MEDICAL_CENTERS);
+  }, []);
+
+  // Pre-indexed items based on randomized centers
   const indexedItems = useMemo(() => {
-    return MEDICAL_CENTERS.map((r) => {
+    return randomizedCenters.map((r) => {
       const normalizedName = norm(r.name);
       const phones = [r.phone, ...(r.alt || [])].filter(Boolean).join(' ');
       return {
@@ -237,7 +286,7 @@ export default function App() {
         ph: phones,
       };
     });
-  }, []);
+  }, [randomizedCenters]);
 
   // Compute category and street counts
   const { typeCounts, streetCounts } = useMemo(() => {
@@ -318,11 +367,27 @@ export default function App() {
     saved,
   ]);
 
+  const isSearching = query.trim().length > 0;
+
+  // Capped cards to encourage search (limit to ~10 on browsing, full list on search or saved)
+  const displayedCenters = useMemo(() => {
+    if (isSearching || activeTab === 'saved') {
+      return filteredCenters;
+    }
+    return filteredCenters.slice(0, visibleLimit);
+  }, [filteredCenters, isSearching, activeTab, visibleLimit]);
+
+  const hasMoreToSearch =
+    !isSearching &&
+    activeTab !== 'saved' &&
+    filteredCenters.length > displayedCenters.length;
+
   const handleResetFilters = () => {
     setQuery('');
     setSelectedType('');
     setSelectedStreet('');
     setOnlyNightShift(false);
+    setVisibleLimit(10);
   };
 
   const hasActiveFilters = Boolean(
@@ -489,26 +554,68 @@ export default function App() {
                   : 'همه مراکز درمانی طرف قرارداد'}
               </h2>
               <span className="tabular-nums font-bold text-slate-700 bg-white px-2.5 py-0.5 rounded-full border border-slate-200">
-                {toFa(filteredCenters.length)} مرکز
+                {isSearching || activeTab === 'saved' || filteredCenters.length <= displayedCenters.length
+                  ? `${toFa(filteredCenters.length)} مرکز`
+                  : `نمایش ${toFa(displayedCenters.length)} از ${toFa(filteredCenters.length)} مرکز`}
               </span>
             </div>
 
             {/* Centers Grid / List */}
             {filteredCenters.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {filteredCenters.map((center) => (
-                  <CenterCard
-                    key={center.k}
-                    center={center}
-                    isSaved={saved.has(center.k)}
-                    onToggleSave={handleToggleSave}
-                    onOpenDetail={setSelectedCenter}
-                    onCopyPhone={(phone, e) => {
-                      e.stopPropagation();
-                      handleCopyText(phone, 'شماره تلفن کپی شد');
-                    }}
-                  />
-                ))}
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {displayedCenters.map((center) => (
+                    <CenterCard
+                      key={center.k}
+                      center={center}
+                      isSaved={saved.has(center.k)}
+                      onToggleSave={handleToggleSave}
+                      onOpenDetail={setSelectedCenter}
+                      onCopyPhone={(phone, e) => {
+                        e.stopPropagation();
+                        handleCopyText(phone, 'شماره تلفن کپی شد');
+                      }}
+                    />
+                  ))}
+                </div>
+
+                {/* Search Encouragement & Limit Box */}
+                {hasMoreToSearch && (
+                  <div className="bg-gradient-to-b from-white to-blue-50/50 rounded-2xl border-2 border-dashed border-blue-200/90 p-5 sm:p-6 text-center space-y-3.5 shadow-2xs">
+                    <div className="w-12 h-12 rounded-2xl bg-blue-100/80 text-[#0a4c9a] flex items-center justify-center mx-auto border border-blue-200 shadow-2xs">
+                      <Search className="w-6 h-6 text-[#0a4c9a]" />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <h3 className="text-sm sm:text-base font-extrabold text-slate-800">
+                        به دنبال پزشک، درمانگاه یا مرکز خاصی هستید؟
+                      </h3>
+                      <p className="text-xs text-slate-600 leading-relaxed max-w-md mx-auto">
+                        جهت جلوگیری از اسکرول طولانی و دسترسی فوری به نشانی و شماره تماس، نام مرکز، پزشک یا تخصص را در کادر جستجو وارد کنید.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={handleFocusSearch}
+                        className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#0a4c9a] hover:bg-blue-900 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-sm active:scale-95"
+                      >
+                        <Search className="w-4 h-4" />
+                        <span>جستجوی نام مرکز یا پزشک</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsStreetFilterOpen(true)}
+                        className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white hover:bg-orange-50 text-[#F15A31] text-xs font-bold transition flex items-center justify-center gap-2 border border-orange-200 active:scale-95 shadow-2xs"
+                      >
+                        <MapPin className="w-4 h-4" />
+                        <span>فیلتر خیابان‌ها</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               /* Empty State */
@@ -560,7 +667,43 @@ export default function App() {
         )}
 
         {/* Tab 2: Guide & Sinad Claim Portal */}
-        {activeTab === 'guide' && <GuideTab />}
+        {activeTab === 'guide' && (
+          <GuideTab onOpenOnboarding={() => setIsOnboardingOpen(true)} />
+        )}
+
+        {/* Subtle App & Developer Footer Credit */}
+        <footer className="text-center pt-6 pb-2 text-xs text-slate-400 space-y-1.5 border-t border-slate-200/60 mt-6">
+          <div className="font-semibold text-slate-600">
+            سامانه مراکز درمانی کارآفرین ارومیه · گروه صنعتی اسپوتا
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[11px] text-slate-500">
+            <span>طراح و توسعه‌دهنده نرم‌افزار:</span>
+            <button
+              onClick={() => {
+                setActiveTab('guide');
+                window.scrollTo({ top: 9999, behavior: 'smooth' });
+              }}
+              className="font-bold text-[#0a4c9a] hover:underline"
+            >
+              سعید جباری
+            </button>
+            <span className="text-slate-300">·</span>
+            <a
+              href="mailto:saeedjabbari21@gmail.com"
+              dir="ltr"
+              className="text-slate-600 hover:text-[#0a4c9a] font-medium"
+            >
+              saeedjabbari21@gmail.com
+            </a>
+            <span className="text-slate-300">·</span>
+            <button
+              onClick={() => setIsOnboardingOpen(true)}
+              className="text-[#F15A31] hover:underline font-bold"
+            >
+              راهنمای سریع
+            </button>
+          </div>
+        </footer>
       </main>
 
       {/* Bottom Navigation */}
@@ -601,6 +744,12 @@ export default function App() {
       <IOSInstallGuideModal
         isOpen={isIOSGuideOpen}
         onClose={() => setIsIOSGuideOpen(false)}
+      />
+
+      <QuickOnboardingModal
+        isOpen={isOnboardingOpen}
+        onClose={() => setIsOnboardingOpen(false)}
+        onStartSearch={handleFocusSearch}
       />
 
       {/* Global Toast */}

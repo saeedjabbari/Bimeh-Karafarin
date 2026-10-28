@@ -9,12 +9,22 @@ import {
   PhoneCall,
   Clock,
   CreditCard,
-  FileCheck
+  FileCheck,
+  Code2,
+  Mail,
+  Sparkles,
+  Smartphone,
+  Layers,
+  HeartHandshake
 } from 'lucide-react';
 
 const PORTAL_URL = 'https://sinad.karafarin-insurance.ir/DarmanAfzar.Customer/index.html';
 
-export const GuideTab: React.FC = () => {
+interface GuideTabProps {
+  onOpenOnboarding?: () => void;
+}
+
+export const GuideTab: React.FC<GuideTabProps> = ({ onOpenOnboarding }) => {
   return (
     <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
       {/* Hero Portal Card */}
@@ -135,6 +145,74 @@ export const GuideTab: React.FC = () => {
             <span>کارت ملی بیمار و شماره شبای بانکی به نام بیمه‌شده اصلی</span>
           </li>
         </ul>
+      </div>
+
+      {/* About Application & Developer Info */}
+      <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs space-y-4">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#0a4c9a] flex items-center justify-center shrink-0 border border-blue-100">
+              <Shield className="w-5 h-5 text-[#0a4c9a]" />
+            </div>
+            <div>
+              <h3 className="text-sm font-extrabold text-slate-900">
+                درباره نرم‌افزار و مشخصات توسعه‌دهنده
+              </h3>
+              <p className="text-[11px] text-slate-500">
+                سامانه هوشمند مراکز درمانی کارآفرین ارومیه
+              </p>
+            </div>
+          </div>
+
+          {onOpenOnboarding && (
+            <button
+              type="button"
+              onClick={onOpenOnboarding}
+              className="text-xs font-bold text-[#0a4c9a] hover:bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-200 transition active:scale-95 flex items-center gap-1 shrink-0"
+              title="مشاهده راهنمای تصویری"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>راهنمای سریع</span>
+            </button>
+          )}
+        </div>
+
+        {/* App Purpose Description */}
+        <div className="space-y-2 text-xs text-slate-600 leading-relaxed bg-slate-50/70 p-3.5 rounded-xl border border-slate-100">
+          <p>
+            این نرم‌افزار یک <strong>راهنمای هوشمند، برخط و آفلاین</strong> برای دسترسی سریع، آسان و بدون معطلی به فهرست کامل بیش از ۱۳۰ مرکز درمانی طرف قرارداد بیمه کارآفرین در شهر ارومیه (شامل بیمارستان‌ها، درمانگاه‌های شبانه‌روزی، آزمایشگاه‌ها، مراکز تصویربرداری، دندانپزشکی‌ها، داروخانه‌ها و فیزیوتراپی‌ها) است.
+          </p>
+          <p className="text-[11.5px] text-slate-500 pt-1 border-t border-slate-200/60">
+            🎯 <strong>هدف نرم‌افزار:</strong> خدمت‌رسانی به پرسنل و خانواده‌های محترم گروه صنعتی اسپوتا جهت تسریع در یافتن نزدیک‌ترین مراکز درمانی، شماره‌های تماس معتبر، مسیریابی دقیق و ثبت آسان اسناد خسارت درمان.
+          </p>
+        </div>
+
+        {/* Developer Contact Card */}
+        <div className="p-3.5 rounded-xl bg-gradient-to-r from-blue-50/80 to-indigo-50/80 border border-blue-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-[#0a4c9a] text-white flex items-center justify-center shrink-0 font-extrabold shadow-2xs">
+              <Code2 className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-500 text-[11px]">طراح و توسعه‌دهنده نرم‌افزار:</span>
+                <strong className="text-slate-900 font-extrabold text-xs">سعید جباری</strong>
+              </div>
+              <div className="flex items-center gap-1.5 mt-0.5 text-slate-600 font-medium text-[11.5px]">
+                <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span dir="ltr" className="select-all">saeedjabbari21@gmail.com</span>
+              </div>
+            </div>
+          </div>
+
+          <a
+            href="mailto:saeedjabbari21@gmail.com"
+            className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-white hover:bg-blue-50 border border-blue-200 text-[#0a4c9a] font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-2xs active:scale-95 shrink-0"
+          >
+            <Mail className="w-3.5 h-3.5" />
+            <span>ارسال پیام یا پیشنهاد</span>
+          </a>
+        </div>
       </div>
 
       {/* Organization info & footer links */}

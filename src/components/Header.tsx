@@ -100,6 +100,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="relative flex-1">
             <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             <input
+              id="main-search-input"
               type="text"
               value={query}
               onChange={(e) => onQueryChange(e.target.value)}
