@@ -18,7 +18,7 @@ import { ExternalLink, X, RotateCcw, Bookmark, Info, Sparkles, Search, MapPin } 
 import { collection, addDoc, doc, getDocFromServer } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import { AdminPanel } from './components/AdminPanel';
-import { submitReportToSheets } from './lib/sheets';
+import { submitReportToSheets, recordSearchToSheets } from './lib/sheets';
 
 const STORAGE_KEY = 'krf_saved';
 const PORTAL_URL = 'https://sinad.karafarin-insurance.ir/DarmanAfzar.Customer/index.html';
@@ -381,6 +381,23 @@ export default function App() {
     !isSearching &&
     activeTab !== 'saved' &&
     filteredCenters.length > displayedCenters.length;
+
+  // Intelligent Debounced Search Logging to Google Sheets for Marketing & Demand Analytics
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) return;
+
+    const timer = setTimeout(() => {
+      recordSearchToSheets({
+        term: q,
+        resultCount: filteredCenters.length,
+        selectedStreet: selectedStreet || undefined,
+        selectedType: selectedType || undefined,
+      }).catch(() => {});
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [query, filteredCenters.length, selectedStreet, selectedType]);
 
   const handleResetFilters = () => {
     setQuery('');

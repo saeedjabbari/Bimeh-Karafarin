@@ -53,7 +53,7 @@ import {
 
 const ADMIN_STORAGE_KEY = 'krf_admin_logged_in';
 const ADMIN_PASS_KEY = 'krf_admin_pass';
-const DEFAULT_PASSWORD = 'karafarin1403';
+const DEFAULT_PASSWORD = 'A$m@#73';
 const DEFAULT_USERNAME = 'admin';
 
 interface AdminPanelProps {
@@ -277,12 +277,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     e.preventDefault();
     setLoginError('');
 
-    const savedPass = localStorage.getItem(ADMIN_PASS_KEY) || DEFAULT_PASSWORD;
+    const rawPass = localStorage.getItem(ADMIN_PASS_KEY);
+    const savedPass = rawPass && rawPass !== 'karafarin1403' ? rawPass : DEFAULT_PASSWORD;
 
-    if (
-      usernameInput.trim().toLowerCase() === DEFAULT_USERNAME &&
-      passwordInput === savedPass
-    ) {
+    const user = usernameInput.trim().toLowerCase();
+    const isValidUser = user === DEFAULT_USERNAME || user === 'saeed' || user === '';
+
+    if (isValidUser && passwordInput === savedPass) {
       setIsAuthenticated(true);
       sessionStorage.setItem(ADMIN_STORAGE_KEY, 'true');
       showToast('ورود با موفقیت انجام شد');
@@ -568,7 +569,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   type="text"
                   value={usernameInput}
                   onChange={(e) => setUsernameInput(e.target.value)}
-                  placeholder="admin"
+                  placeholder="نام کاربری..."
                   dir="ltr"
                   className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 outline-none focus:bg-white focus:border-[#0a4c9a]"
                 />
@@ -576,22 +577,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
               <div>
                 <label className="block text-slate-700 text-xs font-bold mb-1">
-                  رمز عبور اختصاصی:
+                  رمز عبور:
                 </label>
                 <div className="relative">
                   <input
                     type="password"
                     value={passwordInput}
                     onChange={(e) => setPasswordInput(e.target.value)}
-                    placeholder="رمز ورود..."
+                    placeholder="رمز عبور..."
                     dir="ltr"
                     className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 outline-none focus:bg-white focus:border-[#0a4c9a]"
                   />
                   <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3.5 pointer-events-none" />
-                </div>
-                <div className="text-[10px] text-slate-400 mt-1.5 flex items-center justify-between">
-                  <span>پیش‌فرض: <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-600 font-bold">admin</code></span>
-                  <span>رمز: <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-600 font-bold">{DEFAULT_PASSWORD}</code></span>
                 </div>
               </div>
 

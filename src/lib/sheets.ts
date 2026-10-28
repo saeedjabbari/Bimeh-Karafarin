@@ -110,20 +110,214 @@ export async function fetchReportsFromSheets(): Promise<MedicalCenterReport[]> {
 }
 
 /**
+ * Record user search to Google Sheets Webhook in a separate "جستجوهای کاربران" tab
+ */
+export interface SearchRecord {
+  term: string;
+  resultCount: number;
+  selectedStreet?: string;
+  selectedType?: string;
+  createdAt?: string;
+}
+
+export async function recordSearchToSheets(search: SearchRecord): Promise<boolean> {
+  const webhookUrl = getSheetsWebhookUrl();
+  if (!webhookUrl) return false;
+
+  const payload = {
+    type: 'search',
+    term: search.term,
+    resultCount: search.resultCount,
+    selectedStreet: search.selectedStreet || 'همه',
+    selectedType: search.selectedType || 'همه',
+    createdAt: search.createdAt || new Date().toISOString(),
+  };
+
+  try {
+    await fetch(webhookUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify(payload),
+    });
+    return true;
+  } catch (err) {
+    console.warn('Error recording search to Google Sheets:', err);
+    return false;
+  }
+}
+
+/**
+ * Fetch all searches from Google Sheets Webhook via GET
+ */
+export async function fetchSearchesFromSheets(): Promise<SearchRecord[]> {
+  const webhookUrl = getSheetsWebhookUrl();
+  if (!webhookUrl) return [];
+
+  try {
+    const fetchUrl = `${webhookUrl}${webhookUrl.includes('?') ? '&' : '?'}type=searches&_t=${Date.now()}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 7000);
+
+    const res = await fetch(fetchUrl, {
+      method: 'GET',
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const list: any[] = Array.isArray(data) ? data : data.searches || [];
+
+    return list.map((item) => ({
+      term: String(item['عبارت جستجو شده'] || item.term || ''),
+      resultCount: Number(item['تعداد نتایج'] || item.resultCount || 0),
+      selectedStreet: String(item['فیلتر خیابان'] || item.selectedStreet || 'همه'),
+      selectedType: String(item['فیلتر دسته‌بندی'] || item.selectedType || 'همه'),
+      createdAt: String(item['تاریخ و ساعت'] || item.createdAt || ''),
+    }));
+  } catch (err) {
+    console.warn('Error fetching searches from Google Sheets:', err);
+    return [];
+  }
+}
+
+/**
  * The exact Google Apps Script code template that admin can paste in their Google Sheet
+ * Handles both:
+ * 1) Medical Center Reports (Saved in 'گزارشات مراکز' sheet)
+ * 2) User Searches for Marketing (Saved in 'جستجوهای کاربران' sheet)
  */
 export const GOOGLE_APPS_SCRIPT_CODE = `// ========================================================
-// اسکریپت اتصال اپلیکیشن بیمه کارآفرین به Google Sheets
+// اسکریپت جامع اتصال اپلیکیشن مراکز درمانی کارآفرین به Google Sheets
+// شامل دو تب مجزا: ۱) گزارشات مراکز   ۲) جستجوهای کاربران (مارکتینگ)
 // ========================================================
 
+function doPost(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  try {
+    var item = JSON.parse(e.postData.contents);
+    
+    // الف) اگر داده از نوع ثبت جستجوی کاربر باشد
+    if (item.type === 'search') {
+      var searchSheet = ss.getSheetByName("جستجوهای کاربران");
+      if (!searchSheet) {
+        searchSheet = ss.insertSheet("جستجوهای کاربران");
+      }
+      
+      // ساخت هدر در صورت خالی بودن شیت جستجوها
+      if (searchSheet.getLastRow() === 0) {
+        searchSheet.appendRow([
+          'عبارت جستجو شده',
+          'تعداد نتایج یافت‌شده',
+          'فیلتر خیابان',
+          'فیلتر دسته‌بندی',
+          'تاریخ و زمان',
+          'وضعیت تقاضا'
+        ]);
+        searchSheet.getRange(1, 1, 1, 6).setFontWeight('bold').setBackground('#fed7aa');
+      }
+      
+      var demandStatus = (Number(item.resultCount) === 0) ? '❌ ناموجود (فرصت قرارداد)' : '✅ یافت شد';
+      var tehranTime = Utilities.formatDate(new Date(), "Asia/Tehran", "yyyy/MM/dd HH:mm:ss");
+      
+      searchSheet.appendRow([
+        item.term || '',
+        item.resultCount !== undefined ? item.resultCount : 0,
+        item.selectedStreet || 'همه',
+        item.selectedType || 'همه',
+        tehranTime,
+        demandStatus
+      ]);
+      
+      return ContentService.createTextOutput(JSON.stringify({ success: true, target: 'search' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // ب) در غیر این صورت، گزارش مغایرت یا تغییر مشخصات مرکز است
+    var repSheet = ss.getSheetByName("گزارشات مراکز") || ss.getSheets()[0];
+    if (repSheet.getName() === "جستجوهای کاربران") {
+      repSheet = ss.insertSheet("گزارشات مراکز");
+    }
+    
+    // ساخت هدر در صورت خالی بودن شیت گزارشات
+    if (repSheet.getLastRow() === 0) {
+      repSheet.appendRow([
+        'centerId',
+        'centerName',
+        'centerType',
+        'reason',
+        'reasonLabel',
+        'details',
+        'reporterContact',
+        'status',
+        'createdAt'
+      ]);
+      repSheet.getRange(1, 1, 1, 9).setFontWeight('bold').setBackground('#e2e8f0');
+    }
+    
+    repSheet.appendRow([
+      item.centerId || '',
+      item.centerName || '',
+      item.centerType || '',
+      item.reason || '',
+      item.reasonLabel || '',
+      item.details || '',
+      item.reporterContact || '',
+      item.status || 'pending',
+      item.createdAt || new Date().toISOString()
+    ]);
+    
+    return ContentService.createTextOutput(JSON.stringify({ success: true, target: 'report' }))
+      .setMimeType(ContentService.MimeType.JSON);
+      
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ error: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
 function doGet(e) {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var data = sheet.getDataRange().getValues();
-  if (data.length <= 1) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var type = (e && e.parameter && e.parameter.type) ? e.parameter.type : 'reports';
+  
+  // بازگرداندن دیتای جستجوها
+  if (type === 'searches') {
+    var searchSheet = ss.getSheetByName("جستجوهای کاربران");
+    if (!searchSheet || searchSheet.getLastRow() <= 1) {
+      return ContentService.createTextOutput(JSON.stringify({ searches: [] }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    var sData = searchSheet.getDataRange().getValues();
+    var sHeaders = sData[0];
+    var searches = [];
+    for (var i = 1; i < sData.length; i++) {
+      var sRow = sData[i];
+      var sItem = {};
+      for (var j = 0; j < sHeaders.length; j++) {
+        sItem[sHeaders[j]] = sRow[j];
+      }
+      searches.push(sItem);
+    }
+    return ContentService.createTextOutput(JSON.stringify({ searches: searches }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  // پیش‌فرض: بازگرداندن دیتای گزارشات مراکز
+  var repSheet = ss.getSheetByName("گزارشات مراکز") || ss.getSheets()[0];
+  if (!repSheet || repSheet.getLastRow() <= 1) {
     return ContentService.createTextOutput(JSON.stringify({ reports: [] }))
       .setMimeType(ContentService.MimeType.JSON);
   }
   
+  var data = repSheet.getDataRange().getValues();
   var headers = data[0];
   var reports = [];
   for (var i = 1; i < data.length; i++) {
@@ -137,46 +331,5 @@ function doGet(e) {
   
   return ContentService.createTextOutput(JSON.stringify({ reports: reports }))
     .setMimeType(ContentService.MimeType.JSON);
-}
-
-function doPost(e) {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  
-  // اگر شیت خالی است، ردیف عنوان‌ها را بساز
-  if (sheet.getLastRow() === 0) {
-    sheet.appendRow([
-      'centerId',
-      'centerName',
-      'centerType',
-      'reason',
-      'reasonLabel',
-      'details',
-      'reporterContact',
-      'status',
-      'createdAt'
-    ]);
-    sheet.getRange(1, 1, 1, 9).setFontWeight('bold').setBackground('#f3f4f6');
-  }
-  
-  try {
-    var item = JSON.parse(e.postData.contents);
-    sheet.appendRow([
-      item.centerId || '',
-      item.centerName || '',
-      item.centerType || '',
-      item.reason || '',
-      item.reasonLabel || '',
-      item.details || '',
-      item.reporterContact || '',
-      item.status || 'pending',
-      item.createdAt || new Date().toISOString()
-    ]);
-    
-    return ContentService.createTextOutput(JSON.stringify({ success: true }))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ error: err.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
 }
 `;
