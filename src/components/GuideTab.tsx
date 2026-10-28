@@ -198,19 +198,24 @@ export const GuideTab: React.FC<GuideTabProps> = ({ onOpenOnboarding }) => {
                 <span className="text-slate-500 text-[11px]">طراح و توسعه‌دهنده نرم‌افزار:</span>
                 <strong className="text-slate-900 font-extrabold text-xs">سعید جباری</strong>
               </div>
-              <div className="flex items-center gap-1.5 mt-0.5 text-slate-600 font-medium text-[11.5px]">
-                <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <span dir="ltr" className="select-all">saeedjabbari21@gmail.com</span>
-              </div>
+              <a
+                href="mailto:saeedjabbari21@gmail.com"
+                className="inline-flex items-center gap-1.5 mt-1 text-[#0a4c9a] hover:text-blue-800 font-bold text-xs hover:underline"
+                title="ارسال ایمیل به توسعه‌دهنده"
+              >
+                <Mail className="w-3.5 h-3.5 text-[#0a4c9a] shrink-0" />
+                <span>Email</span>
+              </a>
             </div>
           </div>
 
           <a
             href="mailto:saeedjabbari21@gmail.com"
-            className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-white hover:bg-blue-50 border border-blue-200 text-[#0a4c9a] font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-2xs active:scale-95 shrink-0"
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white hover:bg-blue-50 border border-blue-200 text-[#0a4c9a] font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-2xs active:scale-95 shrink-0"
+            title="ارسال ایمیل به توسعه‌دهنده"
           >
-            <Mail className="w-3.5 h-3.5" />
-            <span>ارسال پیام یا پیشنهاد</span>
+            <Mail className="w-4 h-4 text-[#0a4c9a]" />
+            <span>ارسال پیام (Email)</span>
           </a>
         </div>
       </div>

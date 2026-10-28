@@ -17,6 +17,7 @@ interface HeaderProps {
   isInstallable: boolean;
   onInstall: () => void;
   onSecretAdminTap?: () => void;
+  onSubmitSearch?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -33,6 +34,7 @@ export const Header: React.FC<HeaderProps> = ({
   isInstallable,
   onInstall,
   onSecretAdminTap,
+  onSubmitSearch,
 }) => {
   const [taps, setTaps] = React.useState(0);
 
@@ -104,6 +106,11 @@ export const Header: React.FC<HeaderProps> = ({
               type="text"
               value={query}
               onChange={(e) => onQueryChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  onSubmitSearch?.();
+                }
+              }}
               placeholder="جستجوی نام مرکز، پزشک یا شماره تلفن..."
               className="w-full h-11 bg-white text-slate-900 placeholder:text-slate-400 text-sm rounded-full pr-10 pl-10 outline-none shadow-sm focus:ring-2 focus:ring-blue-300 transition"
               autoComplete="off"

@@ -117,6 +117,7 @@ export interface SearchRecord {
   resultCount: number;
   selectedStreet?: string;
   selectedType?: string;
+  clickedCenter?: string;
   createdAt?: string;
 }
 
@@ -130,6 +131,7 @@ export async function recordSearchToSheets(search: SearchRecord): Promise<boolea
     resultCount: search.resultCount,
     selectedStreet: search.selectedStreet || 'همه',
     selectedType: search.selectedType || 'همه',
+    clickedCenter: search.clickedCenter || '',
     createdAt: search.createdAt || new Date().toISOString(),
   };
 
@@ -176,10 +178,11 @@ export async function fetchSearchesFromSheets(): Promise<SearchRecord[]> {
 
     return list.map((item) => ({
       term: String(item['عبارت جستجو شده'] || item.term || ''),
-      resultCount: Number(item['تعداد نتایج'] || item.resultCount || 0),
+      resultCount: Number(item['تعداد نتایج یافت‌شده'] || item['تعداد نتایج'] || item.resultCount || 0),
       selectedStreet: String(item['فیلتر خیابان'] || item.selectedStreet || 'همه'),
       selectedType: String(item['فیلتر دسته‌بندی'] || item.selectedType || 'همه'),
-      createdAt: String(item['تاریخ و ساعت'] || item.createdAt || ''),
+      clickedCenter: String(item['مرکز انتخاب‌شده'] || item.clickedCenter || ''),
+      createdAt: String(item['تاریخ و زمان'] || item['تاریخ و ساعت'] || item.createdAt || ''),
     }));
   } catch (err) {
     console.warn('Error fetching searches from Google Sheets:', err);
@@ -216,12 +219,13 @@ function doPost(e) {
         searchSheet.appendRow([
           'عبارت جستجو شده',
           'تعداد نتایج یافت‌شده',
+          'مرکز انتخاب‌شده / اقدام',
           'فیلتر خیابان',
           'فیلتر دسته‌بندی',
           'تاریخ و زمان',
           'وضعیت تقاضا'
         ]);
-        searchSheet.getRange(1, 1, 1, 6).setFontWeight('bold').setBackground('#fed7aa');
+        searchSheet.getRange(1, 1, 1, 7).setFontWeight('bold').setBackground('#fed7aa');
       }
       
       var demandStatus = (Number(item.resultCount) === 0) ? '❌ ناموجود (فرصت قرارداد)' : '✅ یافت شد';
@@ -230,6 +234,7 @@ function doPost(e) {
       searchSheet.appendRow([
         item.term || '',
         item.resultCount !== undefined ? item.resultCount : 0,
+        item.clickedCenter || '—',
         item.selectedStreet || 'همه',
         item.selectedType || 'همه',
         tehranTime,

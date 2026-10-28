@@ -124,23 +124,15 @@ export const QuickOnboardingModal: React.FC<QuickOnboardingModalProps> = ({
           </div>
         </div>
 
-        {/* Footer Actions */}
-        <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-2">
+        {/* Footer Action */}
+        <div className="p-4 bg-slate-50 border-t border-slate-100">
           <button
             type="button"
             onClick={() => handleFinish('search')}
-            className="w-full sm:flex-1 py-3 px-4 rounded-xl bg-[#0a4c9a] hover:bg-blue-900 text-white font-extrabold text-xs flex items-center justify-center gap-2 transition active:scale-98 shadow-sm"
+            className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-[#0a4c9a] to-[#1864c2] hover:from-blue-900 hover:to-[#0a4c9a] text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition active:scale-98 shadow-md"
           >
-            <Search className="w-4 h-4" />
-            <span>متوجه شدم و شروع جستجو</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleFinish('close')}
-            className="w-full sm:w-auto py-3 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs transition active:scale-98"
-          >
-            مشاهده مراکز
+            <Sparkles className="w-4 h-4 text-amber-300" />
+            <span>ورود و شروع جستجوی مراکز</span>
           </button>
         </div>
       </div>

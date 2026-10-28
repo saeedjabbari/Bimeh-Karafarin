@@ -14,7 +14,7 @@ import { MEDICAL_CENTERS, MedicalCenter } from './data/centers';
 import { TabType, ReportReason } from './types';
 import { norm, squash, toFa } from './utils/persian';
 import { usePWAInstall } from './hooks/usePWAInstall';
-import { ExternalLink, X, RotateCcw, Bookmark, Info, Sparkles, Search, MapPin } from 'lucide-react';
+import { ExternalLink, X, RotateCcw, Bookmark, Info, Sparkles, Search, MapPin, Mail } from 'lucide-react';
 import { collection, addDoc, doc, getDocFromServer } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import { AdminPanel } from './components/AdminPanel';
@@ -382,22 +382,60 @@ export default function App() {
     activeTab !== 'saved' &&
     filteredCenters.length > displayedCenters.length;
 
-  // Intelligent Debounced Search Logging to Google Sheets for Marketing & Demand Analytics
-  useEffect(() => {
+  const lastRecordedQueryRef = React.useRef<string>('');
+
+  // Handle opening center detail + logging partial/completed search intent with clicked center
+  const handleOpenCenterDetail = useCallback(
+    (center: MedicalCenter) => {
+      setSelectedCenter(center);
+      const q = query.trim();
+      // If user typed something (even partial like "دندا") and clicked a center, log that intent immediately
+      if (q.length >= 2 && lastRecordedQueryRef.current !== q) {
+        lastRecordedQueryRef.current = q;
+        recordSearchToSheets({
+          term: q,
+          resultCount: filteredCenters.length,
+          selectedStreet: selectedStreet || undefined,
+          selectedType: selectedType || undefined,
+          clickedCenter: `${center.name} (${center.type})`,
+        }).catch(() => {});
+      }
+    },
+    [query, filteredCenters.length, selectedStreet, selectedType]
+  );
+
+  // Immediate search logging (e.g. when pressing Enter or tapping Search)
+  const handleImmediateSearchLog = useCallback(() => {
     const q = query.trim();
     if (q.length < 2) return;
-
-    const timer = setTimeout(() => {
+    if (lastRecordedQueryRef.current !== q) {
+      lastRecordedQueryRef.current = q;
+      const topMatch = filteredCenters[0];
       recordSearchToSheets({
         term: q,
         resultCount: filteredCenters.length,
         selectedStreet: selectedStreet || undefined,
         selectedType: selectedType || undefined,
+        clickedCenter: topMatch ? `مشاهده نتایج (نزدیک‌ترین: ${topMatch.name})` : undefined,
       }).catch(() => {});
-    }, 1200);
+    }
+  }, [query, filteredCenters, selectedStreet, selectedType]);
+
+  // Intelligent Debounced Search Logging to Google Sheets for Marketing & Demand Analytics
+  // Captures partial searches (like "دندا") when user pauses typing without pressing Enter
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      if (!q) lastRecordedQueryRef.current = '';
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      handleImmediateSearchLog();
+    }, 1400);
 
     return () => clearTimeout(timer);
-  }, [query, filteredCenters.length, selectedStreet, selectedType]);
+  }, [query, handleImmediateSearchLog]);
 
   const handleResetFilters = () => {
     setQuery('');
@@ -468,6 +506,7 @@ export default function App() {
           setIsAdminRoute(true);
           window.location.hash = '#admin';
         }}
+        onSubmitSearch={handleImmediateSearchLog}
       />
 
       {/* Main Body */}
@@ -587,7 +626,7 @@ export default function App() {
                       center={center}
                       isSaved={saved.has(center.k)}
                       onToggleSave={handleToggleSave}
-                      onOpenDetail={setSelectedCenter}
+                      onOpenDetail={handleOpenCenterDetail}
                       onCopyPhone={(phone, e) => {
                         e.stopPropagation();
                         handleCopyText(phone, 'شماره تلفن کپی شد');
@@ -707,10 +746,11 @@ export default function App() {
             <span className="text-slate-300">·</span>
             <a
               href="mailto:saeedjabbari21@gmail.com"
-              dir="ltr"
-              className="text-slate-600 hover:text-[#0a4c9a] font-medium"
+              className="text-slate-600 hover:text-[#0a4c9a] font-bold hover:underline inline-flex items-center gap-1 text-xs"
+              title="ارسال ایمیل به توسعه‌دهنده"
             >
-              saeedjabbari21@gmail.com
+              <Mail className="w-3.5 h-3.5 text-slate-400" />
+              <span>Email</span>
             </a>
             <span className="text-slate-300">·</span>
             <button

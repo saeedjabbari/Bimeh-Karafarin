@@ -17,6 +17,9 @@ import {
   getSheetsWebhookUrl,
   setSheetsWebhookUrl,
   fetchReportsFromSheets,
+  fetchSearchesFromSheets,
+  recordSearchToSheets,
+  SearchRecord,
   GOOGLE_APPS_SCRIPT_CODE,
 } from '../lib/sheets';
 import {
@@ -49,6 +52,13 @@ import {
   Link,
   ExternalLink,
   Code2,
+  TrendingUp,
+  BarChart3,
+  AlertOctagon,
+  Target,
+  Sparkles,
+  MousePointerClick,
+  Filter,
 } from 'lucide-react';
 
 const ADMIN_STORAGE_KEY = 'krf_admin_logged_in';
@@ -133,6 +143,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [sheetsUrlInput, setSheetsUrlInput] = useState<string>(() => getSheetsWebhookUrl());
   const [copiedCode, setCopiedCode] = useState(false);
   const [isTestingSheets, setIsTestingSheets] = useState(false);
+
+  // Main Dashboard Tab: 'reports' | 'searches'
+  const [activeTab, setActiveTab] = useState<'reports' | 'searches'>('reports');
+
+  // Search Marketing states
+  const [searches, setSearches] = useState<SearchRecord[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('krf_cached_searches') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [isSearchesLoading, setIsSearchesLoading] = useState(false);
+  const [searchTableQuery, setSearchTableQuery] = useState('');
+  const [onlyZeroResults, setOnlyZeroResults] = useState(false);
+  const [isSendingTestSearch, setIsSendingTestSearch] = useState(false);
 
   // Data states
   const [reports, setReports] = useState<MedicalCenterReport[]>([]);
@@ -253,10 +279,161 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     [showToast]
   );
 
+  // Fetch all searches from Google Sheets
+  const fetchAllSearches = useCallback(
+    async (showFeedback = false) => {
+      setIsSearchesLoading(true);
+      try {
+        const fetched = await fetchSearchesFromSheets();
+        if (fetched && fetched.length > 0) {
+          const reversed = [...fetched].reverse();
+          setSearches(reversed);
+          try {
+            localStorage.setItem('krf_cached_searches', JSON.stringify(reversed));
+          } catch {}
+          if (showFeedback) {
+            showToast(`آمار دریافت شد: ${toFa(reversed.length)} جستجو در گوگل شیت`);
+          }
+        } else if (showFeedback) {
+          showToast('هنوز جستجویی در شیت ثبت نشده است');
+        }
+      } catch (err) {
+        console.warn('Error fetching searches:', err);
+        if (showFeedback) {
+          showToast('خطا در دریافت آمار جستجوها از شیت');
+        }
+      } finally {
+        setIsSearchesLoading(false);
+      }
+    },
+    [showToast]
+  );
+
+  // Send a test search to Google Sheets to verify and auto-create the sheet tab
+  const handleSendTestSearch = async () => {
+    setIsSendingTestSearch(true);
+    const testCases = [
+      { term: 'دندانپزشکی ارومیه', resCount: 3, street: 'خیابان حسنی', type: 'داروخانه و دندانپزشکی' },
+      { term: 'ام آر آی کوثر (تقاضای ناموجود)', resCount: 0, street: 'خیابان کاشانی', type: 'تصویربرداری و MRI' },
+      { term: 'داروخانه شبانه روزی', resCount: 2, street: 'خیابان خیام', type: 'داروخانه‌ها' },
+    ];
+    const picked = testCases[Math.floor(Math.random() * testCases.length)];
+    const ok = await recordSearchToSheets({
+      term: picked.term,
+      resultCount: picked.resCount,
+      selectedStreet: picked.street,
+      selectedType: picked.type,
+      clickedCenter: 'تست ادمین (بررسی اتصال شیت)',
+    });
+    if (ok) {
+      showToast(`جستجوی آزمایشی «${picked.term}» ارسال شد. دریافت از شیت...`);
+      setTimeout(() => fetchAllSearches(true), 1500);
+    } else {
+      showToast('خطا در ارسال. لطفاً آدرس وب‌هوک را بررسی کنید');
+    }
+    setIsSendingTestSearch(false);
+  };
+
+  // Copy searches data for Excel / Google Sheets
+  const handleCopySearchesForExcel = () => {
+    if (searches.length === 0) {
+      showToast('جستجویی برای کپی وجود ندارد');
+      return;
+    }
+    const headers = [
+      'ردیف',
+      'عبارت جستجو شده',
+      'تعداد نتایج یافت‌شده',
+      'مرکز انتخاب‌شده / اقدام کاربر',
+      'فیلتر خیابان',
+      'فیلتر دسته‌بندی',
+      'تاریخ و زمان',
+      'وضعیت تقاضا',
+    ];
+    const rows = searches.map((s, i) => [
+      i + 1,
+      s.term,
+      s.resultCount,
+      s.clickedCenter || '—',
+      s.selectedStreet || 'همه',
+      s.selectedType || 'همه',
+      s.createdAt || '—',
+      s.resultCount === 0 ? '❌ ناموجود (فرصت قرارداد)' : '✅ یافت شد',
+    ]);
+    const tsvText = [headers.join('\t'), ...rows.map((row) => row.join('\t'))].join('\n');
+    navigator.clipboard.writeText(tsvText).then(() => {
+      showToast('داده‌های جستجوها کپی شد! می‌توانید در اکسل یا شیت پیست کنید');
+    });
+  };
+
+  // Search marketing analytics
+  const searchAnalytics = useMemo(() => {
+    const total = searches.length;
+    const zeroResults = searches.filter((s) => s.resultCount === 0);
+    const successful = searches.filter((s) => s.resultCount > 0);
+    const clickedCount = searches.filter(
+      (s) => s.clickedCenter && s.clickedCenter !== '—' && !s.clickedCenter.includes('مشاهده نتایج')
+    ).length;
+
+    // Group terms
+    const termMap: Record<
+      string,
+      { count: number; zeroCount: number; lastDate: string; sampleClicks: string[] }
+    > = {};
+
+    searches.forEach((s) => {
+      const t = (s.term || '').trim();
+      if (!t) return;
+      if (!termMap[t]) {
+        termMap[t] = { count: 0, zeroCount: 0, lastDate: s.createdAt || '', sampleClicks: [] };
+      }
+      termMap[t].count += 1;
+      if (s.resultCount === 0) {
+        termMap[t].zeroCount += 1;
+      }
+      if (s.clickedCenter && !termMap[t].sampleClicks.includes(s.clickedCenter)) {
+        termMap[t].sampleClicks.push(s.clickedCenter);
+      }
+    });
+
+    const topKeywords = Object.entries(termMap)
+      .map(([term, data]) => ({ term, ...data }))
+      .sort((a, b) => b.count - a.count);
+
+    const unmetDemands = topKeywords
+      .filter((k) => k.zeroCount > 0)
+      .sort((a, b) => b.zeroCount - a.zeroCount || b.count - a.count);
+
+    return {
+      total,
+      zeroCount: zeroResults.length,
+      successfulCount: successful.length,
+      clickedCount,
+      uniqueKeywordsCount: topKeywords.length,
+      topKeywords: topKeywords.slice(0, 10),
+      unmetDemands: unmetDemands.slice(0, 10),
+    };
+  }, [searches]);
+
+  // Filtered searches for the table
+  const filteredSearches = useMemo(() => {
+    const q = searchTableQuery.trim().toLowerCase();
+    return searches.filter((s) => {
+      if (onlyZeroResults && s.resultCount > 0) return false;
+      if (!q) return true;
+      const termMatch = s.term.toLowerCase().includes(q);
+      const centerMatch = (s.clickedCenter || '').toLowerCase().includes(q);
+      const streetMatch = (s.selectedStreet || '').toLowerCase().includes(q);
+      const typeMatch = (s.selectedType || '').toLowerCase().includes(q);
+      return termMatch || centerMatch || streetMatch || typeMatch;
+    });
+  }, [searches, searchTableQuery, onlyZeroResults]);
+
   // Initial load
   useEffect(() => {
     if (!isAuthenticated) return;
     fetchAllReports(false);
+    fetchAllSearches(false);
 
     // Optional firestore live listener
     try {
@@ -270,7 +447,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       );
       return () => unsubscribe();
     } catch {}
-  }, [isAuthenticated, fetchAllReports]);
+  }, [isAuthenticated, fetchAllReports, fetchAllSearches]);
 
   // Handle Username/Password Login
   const handlePasswordLogin = (e: React.FormEvent) => {
@@ -667,12 +844,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </button>
 
             <button
-              onClick={() => fetchAllReports(true)}
-              disabled={isRefreshing}
-              title="همگام‌سازی و دریافت مجدد گزارش‌ها"
+              onClick={() => {
+                fetchAllReports(true);
+                fetchAllSearches(true);
+              }}
+              disabled={isRefreshing || isSearchesLoading}
+              title="همگام‌سازی و دریافت مجدد گزارش‌ها و جستجوها"
               className="p-2 rounded-xl text-[#0a4c9a] hover:bg-blue-50 border border-blue-200 transition"
             >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${(isRefreshing || isSearchesLoading) ? 'animate-spin' : ''}`} />
             </button>
 
             <button
@@ -725,8 +905,76 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           </div>
         )}
 
-        {/* KPI Counter Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {/* Main Dashboard Navigation Tabs */}
+        <div className="bg-white p-2 rounded-2xl border border-slate-200/90 shadow-xs flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab('reports')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition active:scale-95 ${
+                activeTab === 'reports'
+                  ? 'bg-[#0a4c9a] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+              }`}
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>گزارشات تغییر مشخصات مراکز</span>
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  activeTab === 'reports' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+                }`}
+              >
+                {toFa(reports.length)}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('searches');
+                fetchAllSearches(false);
+              }}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition active:scale-95 relative ${
+                activeTab === 'searches'
+                  ? 'bg-gradient-to-r from-amber-600 to-[#F15A31] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+              }`}
+            >
+              <TrendingUp className="w-4 h-4 text-amber-300" />
+              <span>آمار و تحلیل جستجوها (مارکتینگ و درآمدزایی)</span>
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  activeTab === 'searches' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-900'
+                }`}
+              >
+                {toFa(searches.length)}
+              </span>
+              {searchAnalytics.zeroCount > 0 && (
+                <span className="flex h-2 w-2 relative" title="فرصت‌های قرارداد جدید شناسایی شده">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                </span>
+              )}
+            </button>
+          </div>
+
+          <div className="text-[11px] text-slate-500 font-bold px-2">
+            {activeTab === 'reports' ? (
+              <span>مدیریت اصلاحات نشانی، تلفن و قرارداد مراکز</span>
+            ) : (
+              <span className="text-amber-700 flex items-center gap-1.5 font-bold">
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                <span>تحلیل تقاضاهای کاربران برای عقد قراردادهای پرسود</span>
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* TAB 1: MEDICAL CENTER REPORTS */}
+        {activeTab === 'reports' && (
+          <div className="space-y-6">
+            {/* KPI Counter Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
             <div className="flex items-center justify-between text-slate-500 text-xs mb-1">
               <span>مراکز دارای گزارش</span>
@@ -1261,7 +1509,389 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             })}
           </div>
         )}
-      </main>
+      </div>
+    )}
+
+    {/* TAB 2: SEARCH MARKETING & DEMAND ANALYTICS */}
+    {activeTab === 'searches' && (
+      <div className="space-y-6">
+        {/* Search Analytics KPI Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+            <div className="flex items-center justify-between text-slate-500 text-xs mb-1">
+              <span>کل دفعات جستجوی کاربران</span>
+              <Search className="w-4 h-4 text-slate-400" />
+            </div>
+            <div className="text-2xl font-black text-slate-900 tabular-nums">
+              {toFa(searchAnalytics.total)}{' '}
+              <span className="text-xs font-normal text-slate-400">جستجو</span>
+            </div>
+            <div className="text-[10px] text-slate-400 mt-1">
+              ثبت هوشمند بدون نیاز به فشردن اینتر
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl border border-red-200 shadow-xs bg-red-50/20">
+            <div className="flex items-center justify-between text-red-700 text-xs mb-1">
+              <span className="font-bold">فرصت‌های قرارداد جدید</span>
+              <AlertOctagon className="w-4 h-4 text-red-500" />
+            </div>
+            <div className="text-2xl font-black text-red-700 tabular-nums">
+              {toFa(searchAnalytics.zeroCount)}{' '}
+              <span className="text-xs font-normal text-red-400">بدون نتیجه</span>
+            </div>
+            <div className="text-[10px] text-red-600 font-medium mt-1">
+              تقاضای مرکز خارج از قرارداد فعلی
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl border border-emerald-200 shadow-xs bg-emerald-50/20">
+            <div className="flex items-center justify-between text-emerald-700 text-xs mb-1">
+              <span>جستجوهای موفق</span>
+              <CheckCircle className="w-4 h-4 text-emerald-600" />
+            </div>
+            <div className="text-2xl font-black text-emerald-700 tabular-nums">
+              {toFa(searchAnalytics.successfulCount)}{' '}
+              <span className="text-xs font-normal text-emerald-500">مورد</span>
+            </div>
+            <div className="text-[10px] text-emerald-600 mt-1">
+              دارای مرکز درمانی معتبر در ارومیه
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl border border-blue-200 shadow-xs bg-blue-50/20">
+            <div className="flex items-center justify-between text-blue-700 text-xs mb-1">
+              <span>کلیدواژه‌های منحصربه‌فرد</span>
+              <BarChart3 className="w-4 h-4 text-blue-600" />
+            </div>
+            <div className="text-2xl font-black text-blue-700 tabular-nums">
+              {toFa(searchAnalytics.uniqueKeywordsCount)}{' '}
+              <span className="text-xs font-normal text-blue-400">عنوان</span>
+            </div>
+            <div className="text-[10px] text-blue-600 mt-1">
+              سنجش علایق درمانی بیمه‌گذاران
+            </div>
+          </div>
+        </div>
+
+        {/* Strategic Insights Grid: Golden Contract Opportunities + Top Keywords */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Unmet Demands (Zero Results) -> Golden Contract Opportunities */}
+          <div className="bg-white rounded-2xl border border-red-200 p-5 shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-black text-red-900 flex items-center gap-1.5">
+                  <Target className="w-4 h-4 text-red-600" />
+                  <span>فرصت‌های طلایی عقد قرارداد جدید بیمه (کمبودها در ارومیه)</span>
+                </h3>
+                <span className="bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  ارزش درآمدزایی بالا
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed mb-3">
+                این عبارات مراکزی هستند که مردم در ارومیه سرچ کرده‌اند اما در قراردادهای فعلی کارآفرین نبوده است. عقد قرارداد با این مراکز، رضایت بیمه‌گذاران را متحول می‌کند:
+              </p>
+
+              {searchAnalytics.unmetDemands.length > 0 ? (
+                <div className="space-y-2">
+                  {searchAnalytics.unmetDemands.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between bg-red-50/60 hover:bg-red-50 p-2.5 rounded-xl border border-red-100 transition"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full bg-red-200 text-red-800 text-[10px] font-black flex items-center justify-center">
+                          {toFa(idx + 1)}
+                        </span>
+                        <span className="font-black text-xs text-red-950">
+                          «{item.term}»
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-bold text-red-700 bg-white px-2 py-0.5 rounded-lg border border-red-200">
+                          {toFa(item.zeroCount)} بار جستجوی ناموفق
+                        </span>
+                        <span className="text-[10px] text-slate-500 hidden sm:inline">
+                          {item.lastDate ? formatPersianDate(item.lastDate) : ''}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-500 text-xs">
+                  هنوز جستجوی بدون نتیجه‌ای ثبت نشده است. هر زمان کاربری عبارتی را جستجو کند و مرکزی یافت نشود، خودکار در اینجا نمایان خواهد شد.
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-red-100 text-[10.5px] text-slate-500 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <span>پیشنهاد: این مراکز را به مدیر شعبه ارومیه جهت استعلام قرارداد معرفی کنید.</span>
+            </div>
+          </div>
+
+          {/* Top Searched Keywords */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                  <TrendingUp className="w-4 h-4 text-[#0a4c9a]" />
+                  <span>پرجستجوترین نیازها و کلمات کاربران</span>
+                </h3>
+                <span className="bg-blue-100 text-[#0a4c9a] text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  بیشترین تقاضا
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600 leading-relaxed mb-3">
+                محبوب‌ترین حوزه‌ها و مراکز مورد توجه بیمه‌گذاران که بیشترین ترافیک را ایجاد کرده‌اند:
+              </p>
+
+              {searchAnalytics.topKeywords.length > 0 ? (
+                <div className="space-y-2">
+                  {searchAnalytics.topKeywords.map((item, idx) => {
+                    const maxCount = searchAnalytics.topKeywords[0]?.count || 1;
+                    const percentage = Math.round((item.count / maxCount) * 100);
+                    return (
+                      <div
+                        key={idx}
+                        className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 space-y-1.5"
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-black flex items-center justify-center">
+                              {toFa(idx + 1)}
+                            </span>
+                            <span className="font-extrabold text-slate-800">
+                              {item.term}
+                            </span>
+                          </div>
+                          <span className="text-[11px] font-black text-[#0a4c9a]">
+                            {toFa(item.count)} دفعه
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                          <div
+                            className="bg-[#0a4c9a] h-full rounded-full transition-all duration-500"
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-500 text-xs">
+                  پس از اولین جستجوهای کاربران در برنامه، رتبه‌بندی کلمات در اینجا شکل می‌گیرد.
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-slate-100 text-[10.5px] text-slate-500 flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+              <span>می‌توانید مراکز این دسته‌ها را در ردیف‌های اول یا ویترین برنامه قرار دهید.</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Filter and Actions Toolbar */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          <div className="flex-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+              <input
+                type="text"
+                value={searchTableQuery}
+                onChange={(e) => setSearchTableQuery(e.target.value)}
+                placeholder="جستجو در عبارات، خیابان یا مرکز کلیک‌شده..."
+                className="w-full h-10 pr-9 pl-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 outline-none focus:bg-white focus:border-[#0a4c9a]"
+              />
+              {searchTableQuery && (
+                <button
+                  onClick={() => setSearchTableQuery('')}
+                  className="absolute left-2.5 top-2.5 w-5 h-5 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center text-[10px]"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setOnlyZeroResults((prev) => !prev)}
+              className={`h-10 px-3.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition border ${
+                onlyZeroResults
+                  ? 'bg-red-600 text-white border-red-600 shadow-xs'
+                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              <AlertOctagon className="w-3.5 h-3.5" />
+              <span>فقط موارد ناموجود ({toFa(searchAnalytics.zeroCount)})</span>
+            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSendTestSearch}
+              disabled={isSendingTestSearch}
+              className="h-10 px-3 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold flex items-center gap-1.5 transition shadow-2xs"
+              title="یک جستجوی آزمایشی به گوگل شیت ارسال می‌کند"
+            >
+              <Sparkles className={`w-3.5 h-3.5 text-amber-600 ${isSendingTestSearch ? 'animate-spin' : ''}`} />
+              <span>ارسال جستجوی تستی</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleCopySearchesForExcel}
+              className="h-10 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition shadow-2xs"
+              title="کپی به فرمت اکسل و گوگل شیت"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              <span>کپی جهت اکسل</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => fetchAllSearches(true)}
+              disabled={isSearchesLoading}
+              className="h-10 px-3.5 rounded-xl bg-[#0a4c9a] hover:bg-blue-900 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-xs"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSearchesLoading ? 'animate-spin' : ''}`} />
+              <span>بروزرسانی از شیت</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Searches Detailed Log Table */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+          <div className="p-4 bg-slate-50/70 border-b border-slate-200 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <List className="w-4 h-4 text-[#0a4c9a]" />
+              <h3 className="font-black text-xs text-slate-800">
+                ریز آخرین جستجوهای کاربران ثبت‌شده در گوگل شیت
+              </h3>
+            </div>
+            <span className="text-[11px] font-bold text-slate-500">
+              نمایش {toFa(filteredSearches.length)} از {toFa(searches.length)} جستجو
+            </span>
+          </div>
+
+          {filteredSearches.length === 0 ? (
+            <div className="p-12 text-center text-slate-500 space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
+                <Search className="w-6 h-6" />
+              </div>
+              <div className="font-bold text-xs text-slate-700">
+                هیچ داده‌ای برای نمایش وجود ندارد
+              </div>
+              <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                وقتی کاربران در برنامه جستجو کنند یا روی مراکز کلیک کنند، دیتای آن‌ها خودکار در اینجا و شیت ثبت می‌شود. برای تست سریع، دکمه «ارسال جستجوی تستی» را بزنید.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-right text-xs">
+                <thead>
+                  <tr className="bg-slate-100/90 text-slate-700 border-b border-slate-200 font-extrabold text-[11px]">
+                    <th className="py-3 px-3 w-12 text-center">ردیف</th>
+                    <th className="py-3 px-3">عبارت سرچ‌شده</th>
+                    <th className="py-3 px-3 text-center">نتایج در سیستم</th>
+                    <th className="py-3 px-3">اقدام / مرکز کلیک‌شده</th>
+                    <th className="py-3 px-3">فیلتر خیابان</th>
+                    <th className="py-3 px-3">فیلتر تخصص</th>
+                    <th className="py-3 px-3">تاریخ و ساعت</th>
+                    <th className="py-3 px-3 text-center">وضعیت مارکتینگ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {filteredSearches.map((item, idx) => {
+                    const isZero = item.resultCount === 0;
+                    const hasClicked = Boolean(item.clickedCenter && item.clickedCenter !== '—');
+                    return (
+                      <tr
+                        key={idx}
+                        className={`hover:bg-slate-50 transition ${
+                          isZero ? 'bg-red-50/20' : ''
+                        }`}
+                      >
+                        <td className="py-3 px-3 text-center text-slate-400 text-[11px] tabular-nums">
+                          {toFa(idx + 1)}
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className="font-black text-slate-900 bg-slate-100/80 px-2 py-0.5 rounded-lg border border-slate-200">
+                            {item.term}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-center tabular-nums">
+                          {isZero ? (
+                            <span className="inline-flex items-center gap-1 text-red-600 font-extrabold bg-red-100 px-2 py-0.5 rounded-full text-[10.5px]">
+                              <span>۰ مرکز</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-emerald-700 font-extrabold bg-emerald-100 px-2 py-0.5 rounded-full text-[10.5px]">
+                              <span>{toFa(item.resultCount)} مرکز</span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3">
+                          {hasClicked ? (
+                            <span className="inline-flex items-center gap-1 text-[#0a4c9a] font-bold text-[11px]">
+                              <MousePointerClick className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                              <span className="max-w-[200px] truncate" title={item.clickedCenter}>
+                                {item.clickedCenter}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 text-[11px]">مشاهده فهرست نتایج</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-slate-600 text-[11px]">
+                          {item.selectedStreet && item.selectedStreet !== 'همه' ? (
+                            <span className="bg-orange-50 text-[#F15A31] px-2 py-0.5 rounded-md font-bold">
+                              {item.selectedStreet}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">همه خیابان‌ها</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-slate-600 text-[11px]">
+                          {item.selectedType && item.selectedType !== 'همه' ? (
+                            <span className="bg-blue-50 text-[#0a4c9a] px-2 py-0.5 rounded-md font-bold">
+                              {item.selectedType}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">همه تخصص‌ها</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-slate-500 text-[11px] tabular-nums dir-ltr text-right">
+                          {item.createdAt || '—'}
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          {isZero ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-red-100 text-red-800 border border-red-200">
+                              <AlertOctagon className="w-3 h-3 text-red-600" />
+                              <span>فرصت قرارداد</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              <Check className="w-3 h-3 text-emerald-600" />
+                              <span>مرکز موجود</span>
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+  </main>
 
       {/* Google Sheets Setup Modal */}
       {isSheetsModalOpen && (
