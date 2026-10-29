@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 
 const PORTAL_URL = 'https://sinad.karafarin-insurance.ir/DarmanAfzar.Customer/index.html';
+const APP_DOWNLOAD_URL = 'https://sinad.karafarin-insurance.ir/app';
 
 interface GuideTabProps {
   onOpenOnboarding?: () => void;
@@ -28,34 +29,47 @@ export const GuideTab: React.FC<GuideTabProps> = ({ onOpenOnboarding }) => {
   return (
     <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
       {/* Hero Portal Card */}
-      <div className="bg-gradient-to-br from-[#0a4c9a] to-[#1d6fd1] rounded-2xl p-5 text-white shadow-md space-y-3">
+      <div className="bg-gradient-to-br from-[#0a4c9a] to-[#1d6fd1] rounded-2xl p-5 text-white shadow-md space-y-3.5">
         <div className="flex items-center gap-2.5">
           <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
             <FileText className="w-5 h-5 text-white" />
           </div>
           <div>
             <h2 className="text-base font-extrabold leading-tight">
-              پورتال ثبت و پیگیری مدارک درمان بیمه کارآفرین
+              پورتال و اپلیکیشن ثبت خسارت بیمه کارآفرین
             </h2>
             <p className="text-xs text-blue-100 mt-0.5">
-              سامانه سیناد (درمان‌افزار مشتریان)
+              سامانه جامع سیناد (درمان‌افزار مشتریان)
             </p>
           </div>
         </div>
 
         <p className="text-xs text-blue-100/90 leading-relaxed">
-          اگر مرکز درمانی مورد نظر شما طرف قرارداد آنلاین نیست، می‌توانید هزینه‌ها را شخصاً پرداخت کرده و با بارگذاری مدارک در سامانه، خسارت درمان را مستقیماً در حساب بانکی خود دریافت کنید.
+          اگر مرکز درمانی مورد نظر شما طرف قرارداد آنلاین نیست، می‌توانید هزینه‌ها را شخصاً پرداخت کرده و با بارگذاری مدارک در سامانه یا اپلیکیشن، خسارت درمان را مستقیماً در حساب بانکی خود دریافت کنید.
         </p>
 
-        <a
-          href={PORTAL_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center justify-center gap-2 w-full bg-white text-[#0a4c9a] hover:bg-blue-50 font-bold text-xs py-3 px-4 rounded-xl shadow-sm transition active:scale-98"
-        >
-          <span>ورود به سامانه درمان‌افزار کارآفرین</span>
-          <ExternalLink className="w-4 h-4" />
-        </a>
+        {/* Dual Actions: Web Portal + Android App Download */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+          <a
+            href={PORTAL_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 bg-white text-[#0a4c9a] hover:bg-blue-50 font-extrabold text-xs py-3 px-3.5 rounded-xl shadow-xs transition active:scale-98"
+          >
+            <ExternalLink className="w-4 h-4 text-[#0a4c9a]" />
+            <span>ورود به سامانه تحت وب سیناد</span>
+          </a>
+
+          <a
+            href={APP_DOWNLOAD_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-3 px-3.5 rounded-xl shadow-xs transition active:scale-98"
+          >
+            <Smartphone className="w-4 h-4 text-white" />
+            <span>دانلود اپلیکیشن اندروید سیناد</span>
+          </a>
+        </div>
       </div>
 
       {/* Steps to Claim */}
@@ -159,7 +173,7 @@ export const GuideTab: React.FC<GuideTabProps> = ({ onOpenOnboarding }) => {
                 درباره نرم‌افزار و مشخصات توسعه‌دهنده
               </h3>
               <p className="text-[11px] text-slate-500">
-                سامانه هوشمند مراکز درمانی کارآفرین ارومیه
+                سامانه مراکز درمانی طرف قرارداد کارآفرین ارومیه
               </p>
             </div>
           </div>
@@ -180,7 +194,7 @@ export const GuideTab: React.FC<GuideTabProps> = ({ onOpenOnboarding }) => {
         {/* App Purpose Description */}
         <div className="space-y-2 text-xs text-slate-600 leading-relaxed bg-slate-50/70 p-3.5 rounded-xl border border-slate-100">
           <p>
-            این نرم‌افزار یک <strong>راهنمای هوشمند، برخط و آفلاین</strong> برای دسترسی سریع، آسان و بدون معطلی به فهرست کامل بیش از ۱۳۰ مرکز درمانی طرف قرارداد بیمه کارآفرین در شهر ارومیه (شامل بیمارستان‌ها، درمانگاه‌های شبانه‌روزی، آزمایشگاه‌ها، مراکز تصویربرداری، دندانپزشکی‌ها، داروخانه‌ها و فیزیوتراپی‌ها) است.
+            این نرم‌افزار یک <strong>راهنمای برخط و آفلاین</strong> برای دسترسی سریع، آسان و بدون معطلی به فهرست کامل بیش از ۱۳۰ مرکز درمانی طرف قرارداد بیمه کارآفرین در شهر ارومیه (شامل بیمارستان‌ها، درمانگاه‌های شبانه‌روزی، آزمایشگاه‌ها، مراکز تصویربرداری، دندانپزشکی‌ها، داروخانه‌ها و فیزیوتراپی‌ها) است.
           </p>
           <p className="text-[11.5px] text-slate-500 pt-1 border-t border-slate-200/60">
             🎯 <strong>هدف نرم‌افزار:</strong> خدمت‌رسانی به پرسنل و خانواده‌های محترم گروه صنعتی اسپوتا جهت تسریع در یافتن نزدیک‌ترین مراکز درمانی، شماره‌های تماس معتبر، مسیریابی دقیق و ثبت آسان اسناد خسارت درمان.

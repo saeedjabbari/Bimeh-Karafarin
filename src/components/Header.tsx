@@ -18,6 +18,7 @@ interface HeaderProps {
   onInstall: () => void;
   onSecretAdminTap?: () => void;
   onSubmitSearch?: () => void;
+  onSearchFocus?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -35,6 +36,7 @@ export const Header: React.FC<HeaderProps> = ({
   onInstall,
   onSecretAdminTap,
   onSubmitSearch,
+  onSearchFocus,
 }) => {
   const [taps, setTaps] = React.useState(0);
 
@@ -106,6 +108,7 @@ export const Header: React.FC<HeaderProps> = ({
               type="text"
               value={query}
               onChange={(e) => onQueryChange(e.target.value)}
+              onFocus={onSearchFocus}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   onSubmitSearch?.();

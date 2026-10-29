@@ -121,18 +121,116 @@ export interface SearchRecord {
   createdAt?: string;
 }
 
+export const OFFLINE_SEARCH_QUEUE_KEY = 'krf_offline_search_queue';
+
+/**
+ * Enqueue a search record into localStorage when device is offline
+ */
+function enqueueOfflineSearch(search: SearchRecord): void {
+  try {
+    const raw = localStorage.getItem(OFFLINE_SEARCH_QUEUE_KEY);
+    const queue: SearchRecord[] = raw ? JSON.parse(raw) : [];
+    // Avoid duplicate rapid saves of identical term
+    if (queue.length === 0 || queue[queue.length - 1].term !== search.term) {
+      queue.push(search);
+      // Keep queue bounded
+      if (queue.length > 150) queue.shift();
+      localStorage.setItem(OFFLINE_SEARCH_QUEUE_KEY, JSON.stringify(queue));
+    }
+  } catch {}
+}
+
+/**
+ * Flush all pending offline searches to Google Sheets when back online
+ */
+export async function flushOfflineSearchQueue(): Promise<number> {
+  if (typeof window === 'undefined' || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+    return 0;
+  }
+  const webhookUrl = getSheetsWebhookUrl();
+  if (!webhookUrl) return 0;
+
+  let queue: SearchRecord[] = [];
+  try {
+    const raw = localStorage.getItem(OFFLINE_SEARCH_QUEUE_KEY);
+    if (!raw) return 0;
+    queue = JSON.parse(raw);
+  } catch {
+    return 0;
+  }
+
+  if (queue.length === 0) return 0;
+
+  let flushedCount = 0;
+  const remaining: SearchRecord[] = [];
+
+  for (const item of queue) {
+    try {
+      const payload = {
+        type: 'search',
+        term: item.term,
+        resultCount: item.resultCount,
+        selectedStreet: item.selectedStreet || 'همه',
+        selectedType: item.selectedType || 'همه',
+        clickedCenter: item.clickedCenter || '',
+        createdAt: item.createdAt || new Date().toISOString(),
+      };
+
+      await fetch(webhookUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      flushedCount++;
+      await new Promise((r) => setTimeout(r, 200));
+    } catch {
+      remaining.push(item);
+    }
+  }
+
+  try {
+    if (remaining.length > 0) {
+      localStorage.setItem(OFFLINE_SEARCH_QUEUE_KEY, JSON.stringify(remaining));
+    } else {
+      localStorage.removeItem(OFFLINE_SEARCH_QUEUE_KEY);
+    }
+  } catch {}
+
+  return flushedCount;
+}
+
+// Automatically flush queue whenever online event fires
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => {
+    flushOfflineSearchQueue().catch(() => {});
+  });
+}
+
 export async function recordSearchToSheets(search: SearchRecord): Promise<boolean> {
   const webhookUrl = getSheetsWebhookUrl();
-  if (!webhookUrl) return false;
+  const searchWithDate: SearchRecord = {
+    ...search,
+    createdAt: search.createdAt || new Date().toISOString(),
+  };
+
+  // If offline or no webhook, queue it locally
+  if (!webhookUrl || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+    enqueueOfflineSearch(searchWithDate);
+    return true;
+  }
 
   const payload = {
     type: 'search',
-    term: search.term,
-    resultCount: search.resultCount,
-    selectedStreet: search.selectedStreet || 'همه',
-    selectedType: search.selectedType || 'همه',
-    clickedCenter: search.clickedCenter || '',
-    createdAt: search.createdAt || new Date().toISOString(),
+    term: searchWithDate.term,
+    resultCount: searchWithDate.resultCount,
+    selectedStreet: searchWithDate.selectedStreet || 'همه',
+    selectedType: searchWithDate.selectedType || 'همه',
+    clickedCenter: searchWithDate.clickedCenter || '',
+    createdAt: searchWithDate.createdAt,
   };
 
   try {
@@ -144,10 +242,13 @@ export async function recordSearchToSheets(search: SearchRecord): Promise<boolea
       },
       body: JSON.stringify(payload),
     });
+    // Background flush of any previous offline items
+    flushOfflineSearchQueue().catch(() => {});
     return true;
   } catch (err) {
-    console.warn('Error recording search to Google Sheets:', err);
-    return false;
+    console.warn('Network issue saving search to sheets; queued offline:', err);
+    enqueueOfflineSearch(searchWithDate);
+    return true;
   }
 }
 

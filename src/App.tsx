@@ -14,11 +14,11 @@ import { MEDICAL_CENTERS, MedicalCenter } from './data/centers';
 import { TabType, ReportReason } from './types';
 import { norm, squash, toFa } from './utils/persian';
 import { usePWAInstall } from './hooks/usePWAInstall';
-import { ExternalLink, X, RotateCcw, Bookmark, Info, Sparkles, Search, MapPin, Mail } from 'lucide-react';
+import { ExternalLink, X, RotateCcw, Bookmark, Info, Sparkles, Search, MapPin, Mail, ChevronDown } from 'lucide-react';
 import { collection, addDoc, doc, getDocFromServer } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import { AdminPanel } from './components/AdminPanel';
-import { submitReportToSheets, recordSearchToSheets } from './lib/sheets';
+import { submitReportToSheets, recordSearchToSheets, flushOfflineSearchQueue } from './lib/sheets';
 
 const STORAGE_KEY = 'krf_saved';
 const PORTAL_URL = 'https://sinad.karafarin-insurance.ir/DarmanAfzar.Customer/index.html';
@@ -50,8 +50,9 @@ export default function App() {
   const [isIOSGuideOpen, setIsIOSGuideOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
 
-  // Auto-open Quick Onboarding only on user's first visit
+  // Auto-open Quick Onboarding only on user's first visit and flush offline searches
   useEffect(() => {
+    flushOfflineSearchQueue().catch(() => {});
     try {
       const seen = localStorage.getItem('krf_onboarding_seen');
       if (!seen) {
@@ -73,6 +74,7 @@ export default function App() {
   const [visibleLimit, setVisibleLimit] = useState(10);
 
   const handleFocusSearch = useCallback(() => {
+    setActiveTab('centers');
     window.scrollTo({ top: 0, behavior: 'smooth' });
     setTimeout(() => {
       const input = document.getElementById('main-search-input') as HTMLInputElement | null;
@@ -443,8 +445,10 @@ export default function App() {
     setSelectedStreet('');
     setOnlyNightShift(false);
     setVisibleLimit(10);
+    setActiveTab('centers');
   };
 
+  const hasSelectionFilter = Boolean(selectedType || selectedStreet || onlyNightShift);
   const hasActiveFilters = Boolean(
     query || selectedType || selectedStreet || onlyNightShift
   );
@@ -491,14 +495,39 @@ export default function App() {
       {/* Main Sticky Header */}
       <Header
         query={query}
-        onQueryChange={setQuery}
+        onQueryChange={(newQuery) => {
+          setQuery(newQuery);
+          if (newQuery.trim().length > 0 && activeTab !== 'centers') {
+            setActiveTab('centers');
+          }
+        }}
+        onSearchFocus={() => {
+          if (activeTab !== 'centers') {
+            setActiveTab('centers');
+          }
+        }}
         selectedType={selectedType}
-        onSelectType={setSelectedType}
+        onSelectType={(t) => {
+          setSelectedType(t);
+          if (activeTab !== 'centers') {
+            setActiveTab('centers');
+          }
+        }}
         typeCounts={typeCounts}
         selectedStreet={selectedStreet}
-        onOpenStreetFilter={() => setIsStreetFilterOpen(true)}
+        onOpenStreetFilter={() => {
+          setIsStreetFilterOpen(true);
+          if (activeTab !== 'centers') {
+            setActiveTab('centers');
+          }
+        }}
         onlyNightShift={onlyNightShift}
-        onToggleNightShift={() => setOnlyNightShift((prev) => !prev)}
+        onToggleNightShift={() => {
+          setOnlyNightShift((prev) => !prev);
+          if (activeTab !== 'centers') {
+            setActiveTab('centers');
+          }
+        }}
         resultCount={filteredCenters.length}
         isInstallable={isInstallable || isIOS}
         onInstall={handleInstallClick}
@@ -607,13 +636,13 @@ export default function App() {
                   ? `مراکز خیابان ${selectedStreet}`
                   : selectedType
                   ? `مراکز دسته ${selectedType}`
-                  : 'همه مراکز درمانی طرف قرارداد'}
+                  : 'مراکز درمانی طرف قرارداد'}
               </h2>
-              <span className="tabular-nums font-bold text-slate-700 bg-white px-2.5 py-0.5 rounded-full border border-slate-200">
-                {isSearching || activeTab === 'saved' || filteredCenters.length <= displayedCenters.length
-                  ? `${toFa(filteredCenters.length)} مرکز`
-                  : `نمایش ${toFa(displayedCenters.length)} از ${toFa(filteredCenters.length)} مرکز`}
-              </span>
+              {(hasActiveFilters || activeTab === 'saved') && (
+                <span className="tabular-nums font-bold text-slate-700 bg-white px-2.5 py-0.5 rounded-full border border-slate-200">
+                  {toFa(filteredCenters.length)} مرکز
+                </span>
+              )}
             </div>
 
             {/* Centers Grid / List */}
@@ -644,14 +673,26 @@ export default function App() {
 
                     <div className="space-y-1.5">
                       <h3 className="text-sm sm:text-base font-extrabold text-slate-800">
-                        به دنبال پزشک، درمانگاه یا مرکز خاصی هستید؟
+                        مرکز یا پزشک خاصی مد نظرتان است؟
                       </h3>
                       <p className="text-xs text-slate-600 leading-relaxed max-w-md mx-auto">
-                        جهت جلوگیری از اسکرول طولانی و دسترسی فوری به نشانی و شماره تماس، نام مرکز، پزشک یا تخصص را در کادر جستجو وارد کنید.
+                        برای دسترسی سریع به نشانی و شماره تماس هر مرکز، نام مرکز، پزشک یا تخصص مورد نظر را در کادر بالا جستجو کنید.
                       </p>
                     </div>
 
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-1">
+                      {/* Show continue results button when any filter is active */}
+                      {hasSelectionFilter && (
+                        <button
+                          type="button"
+                          onClick={() => setVisibleLimit((prev) => prev + 10)}
+                          className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-sm active:scale-95"
+                        >
+                          <ChevronDown className="w-4 h-4" />
+                          <span>نمایش ادامه نتایج ({toFa(filteredCenters.length - displayedCenters.length)} مرکز دیگر)</span>
+                        </button>
+                      )}
+
                       <button
                         type="button"
                         onClick={handleFocusSearch}
@@ -787,7 +828,12 @@ export default function App() {
         isOpen={isStreetFilterOpen}
         onClose={() => setIsStreetFilterOpen(false)}
         selectedStreet={selectedStreet}
-        onSelectStreet={setSelectedStreet}
+        onSelectStreet={(s) => {
+          setSelectedStreet(s);
+          if (activeTab !== 'centers') {
+            setActiveTab('centers');
+          }
+        }}
         streetCounts={streetCounts}
         totalCenters={MEDICAL_CENTERS.length}
       />

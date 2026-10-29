@@ -1,5 +1,17 @@
-import React, { useEffect } from 'react';
-import { X, Search, MapPin, Info, Check, ShieldCheck, Sparkles, ArrowLeft } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+  X,
+  Search,
+  MapPin,
+  AlertTriangle,
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
+  Smartphone,
+  ShieldCheck,
+  CheckCircle,
+} from 'lucide-react';
+import { toFa } from '../utils/persian';
 
 interface QuickOnboardingModalProps {
   isOpen: boolean;
@@ -7,15 +19,85 @@ interface QuickOnboardingModalProps {
   onStartSearch?: () => void;
 }
 
+interface SlideItem {
+  id: number;
+  badge: string;
+  badgeColor: string;
+  icon: any;
+  iconBg: string;
+  iconColor: string;
+  title: string;
+  description: string;
+  tip?: string;
+}
+
+const ONBOARDING_SLIDES: SlideItem[] = [
+  {
+    id: 1,
+    badge: 'گام ۱ از ۴',
+    badgeColor: 'bg-blue-100 text-[#0a4c9a] border-blue-200',
+    icon: Search,
+    iconBg: 'bg-blue-50 border-blue-200',
+    iconColor: 'text-[#0a4c9a]',
+    title: 'جستجوی مستقیم و سریع',
+    description:
+      'نام پزشک، درمانگاه، آزمایشگاه یا تخصص را در کادر بالای صفحه بنویسید. حتی با نوشتن ۲ حرف (مثل «دندا»)، مراکز منطبق فوراً پیش روی شما ظاهر می‌شوند.',
+    tip: '💡 نیاز به فشردن کلید اینتر نیست؛ سیستم خودکار جستجو می‌کند.',
+  },
+  {
+    id: 2,
+    badge: 'گام ۲ از ۴',
+    badgeColor: 'bg-orange-100 text-[#F15A31] border-orange-200',
+    icon: MapPin,
+    iconBg: 'bg-orange-50 border-orange-200',
+    iconColor: 'text-[#F15A31]',
+    title: 'مراکز نزدیک شما بر اساس خیابان',
+    description:
+      'با زدن دکمه «خیابان‌ها»، مراکز درمانی واقع در خیابان‌های حسنی، مولوی، کاشانی، خیام و... را به تفکیک مشاهده کرده و نزدیک‌ترین مرکز را بیابید.',
+    tip: '📍 امکان مشاهده لوکیشن و تماس فوری در هر کارت وجود دارد.',
+  },
+  {
+    id: 3,
+    badge: 'گام ۳ از ۴ (مهم)',
+    badgeColor: 'bg-amber-100 text-amber-800 border-amber-200',
+    icon: AlertTriangle,
+    iconBg: 'bg-amber-50 border-amber-200',
+    iconColor: 'text-amber-600',
+    title: 'ثبت مغایرت یا عدم پذیرش بیمه کارآفرین',
+    description:
+      'اگر مرکزی با بیمه کارآفرین همکاری نکرد یا شماره تماس و نشانی آن تغییر کرده بود، کافیست روی «جزئیات» مرکز کلیک کرده و دکمه «گزارش مغایرت» را بزنید.',
+    tip: '🛡️ کارشناسان گزارش شما را بررسی کرده و قرارداد را پیگیری و اطلاعات را اصلاح می‌کنند.',
+  },
+  {
+    id: 4,
+    badge: 'گام ۴ از ۴',
+    badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    icon: Smartphone,
+    iconBg: 'bg-emerald-50 border-emerald-200',
+    iconColor: 'text-emerald-600',
+    title: 'ثبت خسارت و دسترسی دائمی بدون اینترنت',
+    description:
+      'اگر به مرکزی مراجعه کردید که آنلاین نبود، فاکتور را در تب «ثبت خسارت» (از طریق وب یا اپلیکیشن سیناد) بارگذاری نمایید. این نرم‌افزار به صورت آفلاین نیز در گوشی کار می‌کند.',
+    tip: '📱 در تب ثبت خسارت می‌توانید اپلیکیشن اندروید سیناد را دانلود کنید.',
+  },
+];
+
 export const QuickOnboardingModal: React.FC<QuickOnboardingModalProps> = ({
   isOpen,
   onClose,
   onStartSearch,
 }) => {
+  const [currentSlide, setCurrentSlide] = useState(0);
+
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      setCurrentSlide(0);
+      return;
+    }
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowLeft') handleNext();
+      if (e.key === 'ArrowRight') handlePrev();
     };
     window.addEventListener('keydown', handleKeyDown);
     document.body.style.overflow = 'hidden';
@@ -24,7 +106,7 @@ export const QuickOnboardingModal: React.FC<QuickOnboardingModalProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, currentSlide]);
 
   if (!isOpen) return null;
 
@@ -40,12 +122,30 @@ export const QuickOnboardingModal: React.FC<QuickOnboardingModalProps> = ({
     }
   };
 
+  const handleNext = () => {
+    if (currentSlide < ONBOARDING_SLIDES.length - 1) {
+      setCurrentSlide((prev) => prev + 1);
+    } else {
+      handleFinish('search');
+    }
+  };
+
+  const handlePrev = () => {
+    if (currentSlide > 0) {
+      setCurrentSlide((prev) => prev - 1);
+    }
+  };
+
+  const slide = ONBOARDING_SLIDES[currentSlide];
+  const IconComponent = slide.icon;
+  const isLast = currentSlide === ONBOARDING_SLIDES.length - 1;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
         onClick={() => handleFinish('close')}
-        className="fixed inset-0 bg-slate-900/65 backdrop-blur-xs transition-opacity"
+        className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs transition-opacity"
         aria-hidden="true"
       />
 
@@ -53,86 +153,112 @@ export const QuickOnboardingModal: React.FC<QuickOnboardingModalProps> = ({
       <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Top Header Graphic */}
         <div className="bg-gradient-to-l from-[#0a4c9a] to-[#1864c2] p-5 text-white relative">
-          <button
-            onClick={() => handleFinish('close')}
-            className="absolute top-4 left-4 w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center transition active:scale-95"
-            aria-label="بستن"
-          >
-            <X className="w-4 h-4" />
-          </button>
-
-          <div className="flex items-center gap-2 mb-2">
-            <span className="inline-flex items-center gap-1 bg-white/20 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-white/20">
-              <Sparkles className="w-3 h-3 text-amber-300" />
-              <span>راهنمای ۳ ثانیه‌ای</span>
+          <div className="flex items-center justify-between">
+            <span className="inline-flex items-center gap-1.5 bg-white/20 text-[11px] font-bold px-3 py-1 rounded-full border border-white/20">
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>راهنمای کاربری سامانه</span>
             </span>
+
+            <button
+              onClick={() => handleFinish('close')}
+              className="text-xs text-blue-100/90 hover:text-white font-bold px-2 py-1 rounded-lg hover:bg-white/10 transition"
+              title="رد کردن راهنما"
+            >
+              رد کردن
+            </button>
           </div>
 
-          <h2 className="text-base sm:text-lg font-extrabold leading-tight">
-            دسترسی سریع به مراکز درمانی ارومیه
+          <h2 className="text-base sm:text-lg font-extrabold leading-tight mt-3">
+            مراکز درمانی طرف قرارداد بیمه کارآفرین
           </h2>
-          <p className="text-xs text-blue-100/90 mt-1">
-            طرف قرارداد بیمه کارآفرین · گروه صنعتی اسپوتا
+          <p className="text-xs text-blue-100/90 mt-0.5">
+            گروه صنعتی اسپوتا · ارومیه
           </p>
         </div>
 
-        {/* 3 Quick Steps */}
-        <div className="p-5 space-y-3.5 text-xs">
-          {/* Step 1 */}
-          <div className="flex items-start gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100 hover:border-blue-200 transition">
-            <div className="w-9 h-9 rounded-xl bg-blue-100 text-[#0a4c9a] flex items-center justify-center shrink-0 font-bold border border-blue-200">
-              <Search className="w-4 h-4" />
+        {/* Current Slide Content */}
+        <div className="p-6 space-y-4 min-h-[250px] flex flex-col justify-between">
+          <div className="space-y-3.5">
+            <div className="flex items-center justify-between">
+              <span
+                className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full border ${slide.badgeColor}`}
+              >
+                {slide.badge}
+              </span>
+
+              <span className="text-[11px] font-bold text-slate-400">
+                {toFa(currentSlide + 1)} از {toFa(ONBOARDING_SLIDES.length)}
+              </span>
             </div>
-            <div>
-              <strong className="text-slate-900 font-extrabold block text-xs">
-                ۱. جستجوی مستقیم و هوشمند
-              </strong>
-              <p className="text-slate-600 mt-0.5 leading-relaxed text-[11.5px]">
-                نام پزشک، درمانگاه، آزمایشگاه یا تخصص را در کادر بالای صفحه بنویسید تا بلافاصله پیدایش کنید.
-              </p>
+
+            <div className="flex items-start gap-3.5 pt-1">
+              <div
+                className={`w-12 h-12 rounded-2xl ${slide.iconBg} ${slide.iconColor} flex items-center justify-center shrink-0 border shadow-2xs`}
+              >
+                <IconComponent className="w-6 h-6" />
+              </div>
+
+              <div className="space-y-1">
+                <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-snug">
+                  {slide.title}
+                </h3>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {slide.description}
+                </p>
+              </div>
             </div>
+
+            {slide.tip && (
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] text-slate-700 leading-relaxed font-medium">
+                {slide.tip}
+              </div>
+            )}
           </div>
 
-          {/* Step 2 */}
-          <div className="flex items-start gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100 hover:border-orange-200 transition">
-            <div className="w-9 h-9 rounded-xl bg-orange-100 text-[#F15A31] flex items-center justify-center shrink-0 font-bold border border-orange-200">
-              <MapPin className="w-4 h-4" />
-            </div>
-            <div>
-              <strong className="text-slate-900 font-extrabold block text-xs">
-                ۲. فیلتر خیابان‌های ارومیه
-              </strong>
-              <p className="text-slate-600 mt-0.5 leading-relaxed text-[11.5px]">
-                با دکمه «خیابان‌ها»، مراکز نزدیک به خودتان (حسنی، مولوی، خیام و...) را به تفکیک مشاهده نمایید.
-              </p>
-            </div>
-          </div>
-
-          {/* Step 3 */}
-          <div className="flex items-start gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100 hover:border-emerald-200 transition">
-            <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 font-bold border border-emerald-200">
-              <Info className="w-4 h-4" />
-            </div>
-            <div>
-              <strong className="text-slate-900 font-extrabold block text-xs">
-                ۳. اطلاعات تماس و مسیریابی
-              </strong>
-              <p className="text-slate-600 mt-0.5 leading-relaxed text-[11.5px]">
-                روی دکمه «جزئیات» یا هر کارت کلیک کنید تا تمام شماره‌ها، کدملی مرکز و لوکیشن دقیق را ببینید.
-              </p>
-            </div>
+          {/* Dots Indicator */}
+          <div className="flex items-center justify-center gap-1.5 pt-2">
+            {ONBOARDING_SLIDES.map((_, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => setCurrentSlide(idx)}
+                className={`h-2 rounded-full transition-all duration-300 ${
+                  currentSlide === idx
+                    ? 'w-7 bg-[#0a4c9a]'
+                    : 'w-2 bg-slate-300 hover:bg-slate-400'
+                }`}
+                aria-label={`اسلاید ${idx + 1}`}
+              />
+            ))}
           </div>
         </div>
 
-        {/* Footer Action */}
-        <div className="p-4 bg-slate-50 border-t border-slate-100">
+        {/* Footer Navigation Buttons */}
+        <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2">
+          {currentSlide > 0 ? (
+            <button
+              type="button"
+              onClick={handlePrev}
+              className="py-2.5 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs flex items-center gap-1 transition active:scale-95"
+            >
+              <ChevronRight className="w-4 h-4" />
+              <span>قبلی</span>
+            </button>
+          ) : (
+            <div />
+          )}
+
           <button
             type="button"
-            onClick={() => handleFinish('search')}
-            className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-[#0a4c9a] to-[#1864c2] hover:from-blue-900 hover:to-[#0a4c9a] text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition active:scale-98 shadow-md"
+            onClick={handleNext}
+            className={`py-3 px-5 rounded-xl text-white font-extrabold text-xs sm:text-sm flex items-center gap-2 transition active:scale-98 shadow-md ${
+              isLast
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800'
+                : 'bg-[#0a4c9a] hover:bg-blue-900'
+            }`}
           >
-            <Sparkles className="w-4 h-4 text-amber-300" />
-            <span>ورود و شروع جستجوی مراکز</span>
+            <span>{isLast ? 'شروع و ورود به برنامه' : 'گام بعدی'}</span>
+            <ChevronLeft className="w-4 h-4" />
           </button>
         </div>
       </div>
