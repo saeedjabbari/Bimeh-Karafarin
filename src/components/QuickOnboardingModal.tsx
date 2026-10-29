@@ -10,6 +10,7 @@ import {
   Smartphone,
   ShieldCheck,
   CheckCircle,
+  Moon,
 } from 'lucide-react';
 import { toFa } from '../utils/persian';
 
@@ -34,7 +35,7 @@ interface SlideItem {
 const ONBOARDING_SLIDES: SlideItem[] = [
   {
     id: 1,
-    badge: 'گام ۱ از ۴',
+    badge: 'گام ۱ از ۵',
     badgeColor: 'bg-blue-100 text-[#0a4c9a] border-blue-200',
     icon: Search,
     iconBg: 'bg-blue-50 border-blue-200',
@@ -46,7 +47,7 @@ const ONBOARDING_SLIDES: SlideItem[] = [
   },
   {
     id: 2,
-    badge: 'گام ۲ از ۴',
+    badge: 'گام ۲ از ۵',
     badgeColor: 'bg-orange-100 text-[#F15A31] border-orange-200',
     icon: MapPin,
     iconBg: 'bg-orange-50 border-orange-200',
@@ -58,7 +59,19 @@ const ONBOARDING_SLIDES: SlideItem[] = [
   },
   {
     id: 3,
-    badge: 'گام ۳ از ۴ (مهم)',
+    badge: 'گام ۳ از ۵ (اورژانسی)',
+    badgeColor: 'bg-indigo-100 text-indigo-900 border-indigo-200',
+    icon: Moon,
+    iconBg: 'bg-indigo-50 border-indigo-200',
+    iconColor: 'text-indigo-600',
+    title: 'مراکز شبانه‌روزی با یک لمس (آیکون ماه)',
+    description:
+      'در ساعات شب، ایام تعطیل یا موارد اورژانسی، کافیست روی آیکون ماه در بالای صفحه کلیک کنید تا تمام بیمارستان‌ها، درمانگاه‌ها و داروخانه‌های فعال و ۲۴ ساعته ارومیه یکجا فیلتر شوند.',
+    tip: '🌙 مناسب برای دسترسی برق‌آسا در مواقع اضطراری بدون اتلاف وقت.',
+  },
+  {
+    id: 4,
+    badge: 'گام ۴ از ۵ (مهم)',
     badgeColor: 'bg-amber-100 text-amber-800 border-amber-200',
     icon: AlertTriangle,
     iconBg: 'bg-amber-50 border-amber-200',
@@ -69,8 +82,8 @@ const ONBOARDING_SLIDES: SlideItem[] = [
     tip: '🛡️ کارشناسان گزارش شما را بررسی کرده و قرارداد را پیگیری و اطلاعات را اصلاح می‌کنند.',
   },
   {
-    id: 4,
-    badge: 'گام ۴ از ۴',
+    id: 5,
+    badge: 'گام ۵ از ۵',
     badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-200',
     icon: Smartphone,
     iconBg: 'bg-emerald-50 border-emerald-200',
