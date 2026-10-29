@@ -26,7 +26,7 @@ export const CenterCard: React.FC<CenterCardProps> = React.memo(({
   return (
     <article
       onClick={() => onOpenDetail(center)}
-      className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-sm hover:shadow-md hover:border-blue-300 transition-all cursor-pointer flex flex-col gap-3 group"
+      className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-sm hover:shadow-md hover:border-blue-300 transition-colors duration-150 cursor-pointer flex flex-col gap-3 group"
     >
       {/* Top Header Row */}
       <div className="flex items-start justify-between gap-3">

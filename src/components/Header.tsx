@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Search, X, SlidersHorizontal, Download, Moon, ShieldCheck, MapPin } from 'lucide-react';
 import { toFa } from '../utils/persian';
 import { CATEGORY_CONFIG, getCategoryMeta } from '../constants/categories';
@@ -21,7 +21,7 @@ interface HeaderProps {
   onSearchFocus?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({
+export const Header: React.FC<HeaderProps> = React.memo(({
   query,
   onQueryChange,
   selectedType,
@@ -52,13 +52,19 @@ export const Header: React.FC<HeaderProps> = ({
     setTimeout(() => setTaps(0), 1800);
   };
 
-  const categoryKeys = [
-    'all',
-    ...Object.keys(typeCounts).sort((a, b) => typeCounts[b] - typeCounts[a])
-  ];
+  const totalCount = useMemo(() => {
+    return Object.values(typeCounts).reduce((a, b) => a + b, 0);
+  }, [typeCounts]);
+
+  const categoryKeys = useMemo(() => {
+    return [
+      'all',
+      ...Object.keys(typeCounts).sort((a, b) => (typeCounts[b] || 0) - (typeCounts[a] || 0)),
+    ];
+  }, [typeCounts]);
 
   return (
-    <header className="sticky top-0 z-30 bg-[#0a4c9a] text-white shadow-md transition-all">
+    <header className="sticky top-0 z-30 bg-[#0a4c9a] text-white shadow-md">
       {/* Brand Top Bar */}
       <div className="max-w-4xl mx-auto px-4 pt-3 pb-3">
         <div className="flex items-center justify-between gap-3 mb-3">
@@ -172,17 +178,16 @@ export const Header: React.FC<HeaderProps> = ({
             const isSelected = isAll ? selectedType === '' : selectedType === catKey;
             const meta = isAll ? CATEGORY_CONFIG.all : getCategoryMeta(catKey);
             const Icon = meta.icon;
-            const count = isAll
-              ? Object.values(typeCounts).reduce((a, b) => a + b, 0)
-              : typeCounts[catKey] || 0;
+            const count = isAll ? totalCount : typeCounts[catKey] || 0;
 
             return (
               <button
                 key={catKey}
+                type="button"
                 onClick={() => onSelectType(isAll ? '' : catKey)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition shrink-0 ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors duration-150 shrink-0 select-none active:scale-95 ${
                   isSelected
-                    ? 'bg-white text-[#0a4c9a] shadow-sm'
+                    ? 'bg-white text-[#0a4c9a] shadow-xs'
                     : 'text-blue-100/90 hover:bg-white/10'
                 }`}
               >
@@ -202,4 +207,4 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
     </header>
   );
-};
+});

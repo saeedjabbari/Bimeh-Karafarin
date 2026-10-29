@@ -86,10 +86,7 @@ export default function App() {
     }, 200);
   }, []);
 
-  // Reset scroll limit whenever search or category filters change
-  useEffect(() => {
-    setVisibleLimit(10);
-  }, [query, selectedType, selectedStreet, onlyNightShift, activeTab]);
+
 
   // Bookmarks (Saved)
   const [saved, setSaved] = useState<Set<number>>(() => {
@@ -375,45 +372,59 @@ export default function App() {
 
   const lastRecordedQueryRef = React.useRef<string>('');
 
+  const searchFilterStateRef = React.useRef({
+    query,
+    resultCount: filteredCenters.length,
+    selectedStreet,
+    selectedType,
+    topMatch: filteredCenters[0] as MedicalCenter | undefined,
+  });
+
+  useEffect(() => {
+    searchFilterStateRef.current = {
+      query,
+      resultCount: filteredCenters.length,
+      selectedStreet,
+      selectedType,
+      topMatch: filteredCenters[0],
+    };
+  });
+
   // Handle opening center detail + logging partial/completed search intent with clicked center
-  const handleOpenCenterDetail = useCallback(
-    (center: MedicalCenter) => {
-      setSelectedCenter(center);
-      const q = query.trim();
-      // If user typed something (even partial like "دندا") and clicked a center, log that intent immediately
-      if (q.length >= 2 && lastRecordedQueryRef.current !== q) {
-        lastRecordedQueryRef.current = q;
-        recordSearchToSheets({
-          term: q,
-          resultCount: filteredCenters.length,
-          selectedStreet: selectedStreet || undefined,
-          selectedType: selectedType || undefined,
-          clickedCenter: `${center.name} (${center.type})`,
-        }).catch(() => {});
-      }
-    },
-    [query, filteredCenters.length, selectedStreet, selectedType]
-  );
+  const handleOpenCenterDetail = useCallback((center: MedicalCenter) => {
+    setSelectedCenter(center);
+    const { query: currentQuery, resultCount, selectedStreet: currentStreet, selectedType: currentType } = searchFilterStateRef.current;
+    const q = currentQuery.trim();
+    if (q.length >= 2 && lastRecordedQueryRef.current !== q) {
+      lastRecordedQueryRef.current = q;
+      recordSearchToSheets({
+        term: q,
+        resultCount,
+        selectedStreet: currentStreet || undefined,
+        selectedType: currentType || undefined,
+        clickedCenter: `${center.name} (${center.type})`,
+      }).catch(() => {});
+    }
+  }, []);
 
   // Immediate search logging (e.g. when pressing Enter or tapping Search)
   const handleImmediateSearchLog = useCallback(() => {
-    const q = query.trim();
+    const { query: currentQuery, resultCount, selectedStreet: currentStreet, selectedType: currentType, topMatch } = searchFilterStateRef.current;
+    const q = currentQuery.trim();
     if (q.length < 2) return;
     if (lastRecordedQueryRef.current !== q) {
       lastRecordedQueryRef.current = q;
-      const topMatch = filteredCenters[0];
       recordSearchToSheets({
         term: q,
-        resultCount: filteredCenters.length,
-        selectedStreet: selectedStreet || undefined,
-        selectedType: selectedType || undefined,
+        resultCount,
+        selectedStreet: currentStreet || undefined,
+        selectedType: currentType || undefined,
         clickedCenter: topMatch ? `مشاهده نتایج (نزدیک‌ترین: ${topMatch.name})` : undefined,
       }).catch(() => {});
     }
-  }, [query, filteredCenters, selectedStreet, selectedType]);
+  }, []);
 
   // Intelligent Debounced Search Logging to Google Sheets for Marketing & Demand Analytics
-  // Captures partial searches (like "دندا") when user pauses typing without pressing Enter
   useEffect(() => {
     const q = query.trim();
     if (q.length < 2) {
@@ -428,27 +439,70 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [query, handleImmediateSearchLog]);
 
-  const handleResetFilters = () => {
+  const handleQueryChange = useCallback((newQuery: string) => {
+    setQuery(newQuery);
+    setVisibleLimit(10);
+    if (newQuery.trim().length > 0) {
+      setActiveTab((prev) => (prev !== 'centers' ? 'centers' : prev));
+    }
+  }, []);
+
+  const handleSearchFocus = useCallback(() => {
+    setActiveTab((prev) => (prev !== 'centers' ? 'centers' : prev));
+  }, []);
+
+  const handleSelectType = useCallback((t: string) => {
+    React.startTransition(() => {
+      setSelectedType(t);
+      setVisibleLimit(10);
+      setActiveTab((prev) => (prev !== 'centers' ? 'centers' : prev));
+    });
+  }, []);
+
+  const handleOpenStreetFilter = useCallback(() => {
+    setIsStreetFilterOpen(true);
+    setActiveTab((prev) => (prev !== 'centers' ? 'centers' : prev));
+  }, []);
+
+  const handleToggleNightShift = useCallback(() => {
+    React.startTransition(() => {
+      setOnlyNightShift((prev) => !prev);
+      setVisibleLimit(10);
+      setActiveTab((prev) => (prev !== 'centers' ? 'centers' : prev));
+    });
+  }, []);
+
+  const handleSecretAdminTap = useCallback(() => {
+    setIsAdminRoute(true);
+    window.location.hash = '#admin';
+  }, []);
+
+  const handleCopyPhone = useCallback((phone: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    handleCopyText(phone, 'شماره تلفن کپی شد');
+  }, [handleCopyText]);
+
+  const handleResetFilters = useCallback(() => {
     setQuery('');
     setSelectedType('');
     setSelectedStreet('');
     setOnlyNightShift(false);
     setVisibleLimit(10);
     setActiveTab('centers');
-  };
+  }, []);
 
   const hasSelectionFilter = Boolean(selectedType || selectedStreet || onlyNightShift);
   const hasActiveFilters = Boolean(
     query || selectedType || selectedStreet || onlyNightShift
   );
 
-  const handleInstallClick = () => {
+  const handleInstallClick = useCallback(() => {
     if (isInstallable) {
       install();
     } else if (isIOS) {
       setIsIOSGuideOpen(true);
     }
-  };
+  }, [isInstallable, install, isIOS]);
 
   if (isAdminRoute) {
     return (
@@ -484,46 +538,19 @@ export default function App() {
       {/* Main Sticky Header */}
       <Header
         query={query}
-        onQueryChange={(newQuery) => {
-          setQuery(newQuery);
-          if (newQuery.trim().length > 0 && activeTab !== 'centers') {
-            setActiveTab('centers');
-          }
-        }}
-        onSearchFocus={() => {
-          if (activeTab !== 'centers') {
-            setActiveTab('centers');
-          }
-        }}
+        onQueryChange={handleQueryChange}
+        onSearchFocus={handleSearchFocus}
         selectedType={selectedType}
-        onSelectType={(t) => {
-          setSelectedType(t);
-          if (activeTab !== 'centers') {
-            setActiveTab('centers');
-          }
-        }}
+        onSelectType={handleSelectType}
         typeCounts={typeCounts}
         selectedStreet={selectedStreet}
-        onOpenStreetFilter={() => {
-          setIsStreetFilterOpen(true);
-          if (activeTab !== 'centers') {
-            setActiveTab('centers');
-          }
-        }}
+        onOpenStreetFilter={handleOpenStreetFilter}
         onlyNightShift={onlyNightShift}
-        onToggleNightShift={() => {
-          setOnlyNightShift((prev) => !prev);
-          if (activeTab !== 'centers') {
-            setActiveTab('centers');
-          }
-        }}
+        onToggleNightShift={handleToggleNightShift}
         resultCount={filteredCenters.length}
         isInstallable={isInstallable || isIOS}
         onInstall={handleInstallClick}
-        onSecretAdminTap={() => {
-          setIsAdminRoute(true);
-          window.location.hash = '#admin';
-        }}
+        onSecretAdminTap={handleSecretAdminTap}
         onSubmitSearch={handleImmediateSearchLog}
       />
 
@@ -541,7 +568,7 @@ export default function App() {
                   <span className="inline-flex items-center gap-1 bg-blue-50 text-[#0a4c9a] font-bold px-2.5 py-1 rounded-lg border border-blue-200">
                     <span>دسته‌بندی: {selectedType}</span>
                     <button
-                      onClick={() => setSelectedType('')}
+                      onClick={() => handleSelectType('')}
                       className="hover:text-red-500"
                     >
                       <X className="w-3 h-3" />
@@ -553,7 +580,10 @@ export default function App() {
                   <span className="inline-flex items-center gap-1 bg-orange-50 text-[#F15A31] font-bold px-2.5 py-1 rounded-lg border border-orange-200">
                     <span>خیابان: {selectedStreet}</span>
                     <button
-                      onClick={() => setSelectedStreet('')}
+                      onClick={() => {
+                        setSelectedStreet('');
+                        setVisibleLimit(10);
+                      }}
                       className="hover:text-red-500"
                     >
                       <X className="w-3 h-3" />
@@ -565,7 +595,10 @@ export default function App() {
                   <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 font-bold px-2.5 py-1 rounded-lg border border-amber-200">
                     <span>فقط شبانه‌روزی</span>
                     <button
-                      onClick={() => setOnlyNightShift(false)}
+                      onClick={() => {
+                        setOnlyNightShift(false);
+                        setVisibleLimit(10);
+                      }}
                       className="hover:text-red-500"
                     >
                       <X className="w-3 h-3" />
@@ -577,7 +610,7 @@ export default function App() {
                   <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 font-medium px-2.5 py-1 rounded-lg border border-slate-200">
                     <span>جستجو: «{query}»</span>
                     <button
-                      onClick={() => setQuery('')}
+                      onClick={() => handleQueryChange('')}
                       className="hover:text-red-500"
                     >
                       <X className="w-3 h-3" />
@@ -645,10 +678,7 @@ export default function App() {
                       isSaved={saved.has(center.k)}
                       onToggleSave={handleToggleSave}
                       onOpenDetail={handleOpenCenterDetail}
-                      onCopyPhone={(phone, e) => {
-                        e.stopPropagation();
-                        handleCopyText(phone, 'شماره تلفن کپی شد');
-                      }}
+                      onCopyPhone={handleCopyPhone}
                     />
                   ))}
                 </div>
@@ -819,6 +849,7 @@ export default function App() {
         selectedStreet={selectedStreet}
         onSelectStreet={(s) => {
           setSelectedStreet(s);
+          setVisibleLimit(10);
           if (activeTab !== 'centers') {
             setActiveTab('centers');
           }
