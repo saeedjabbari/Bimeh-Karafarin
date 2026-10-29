@@ -34,3 +34,9 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Off-screen card rendering skip for maximum FPS */
+.card-contain {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 175px;
+}

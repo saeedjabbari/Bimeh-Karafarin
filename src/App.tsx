@@ -1,24 +1,25 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, Suspense, lazy } from 'react';
 import { Header } from './components/Header';
-import { CenterCard } from './components/CenterCard';
-import { CenterDetailModal } from './components/CenterDetailModal';
-import { StreetFilterModal } from './components/StreetFilterModal';
-import { ReportModal } from './components/ReportModal';
-import { GuideTab } from './components/GuideTab';
+import { CenterList } from './components/CenterList';
 import { BottomNav } from './components/BottomNav';
 import { Toast } from './components/Toast';
 import { OfflineBanner } from './components/OfflineBanner';
-import { IOSInstallGuideModal } from './components/IOSInstallGuideModal';
-import { QuickOnboardingModal } from './components/QuickOnboardingModal';
 import { MEDICAL_CENTERS, MedicalCenter } from './data/centers';
 import { TabType, ReportReason } from './types';
 import { norm, squash, toFa } from './utils/persian';
 import { usePWAInstall } from './hooks/usePWAInstall';
 import { ExternalLink, X, RotateCcw, Bookmark, Info, Sparkles, Search, MapPin, Mail, ChevronDown } from 'lucide-react';
-import { collection, addDoc } from 'firebase/firestore';
-import { db } from './lib/firebase';
-import { AdminPanel } from './components/AdminPanel';
 import { submitReportToSheets, recordSearchToSheets, flushOfflineSearchQueue } from './lib/sheets';
+import { useCenterWorkerFilter } from './hooks/useCenterWorkerFilter';
+
+// Lazy-loaded components for optimal initial bundle and fastest First Contentful Paint
+const AdminPanel = lazy(() => import('./components/AdminPanel').then((m) => ({ default: m.AdminPanel })));
+const CenterDetailModal = lazy(() => import('./components/CenterDetailModal').then((m) => ({ default: m.CenterDetailModal })));
+const StreetFilterModal = lazy(() => import('./components/StreetFilterModal').then((m) => ({ default: m.StreetFilterModal })));
+const ReportModal = lazy(() => import('./components/ReportModal').then((m) => ({ default: m.ReportModal })));
+const GuideTab = lazy(() => import('./components/GuideTab').then((m) => ({ default: m.GuideTab })));
+const IOSInstallGuideModal = lazy(() => import('./components/IOSInstallGuideModal').then((m) => ({ default: m.IOSInstallGuideModal })));
+const QuickOnboardingModal = lazy(() => import('./components/QuickOnboardingModal').then((m) => ({ default: m.QuickOnboardingModal })));
 
 const STORAGE_KEY = 'krf_saved';
 const PORTAL_URL = 'https://sinad.karafarin-insurance.ir/DarmanAfzar.Customer/index.html';
@@ -190,13 +191,6 @@ export default function App() {
         console.warn('Background sheets submit note:', err);
       });
 
-      // 3. Fire Firestore submit in background
-      try {
-        const reportsCol = collection(db, 'reports');
-        addDoc(reportsCol, reportData).catch((err) => {
-          console.warn('Background firestore note:', err);
-        });
-      } catch {}
 
       // Short 300ms pause for natural tactile feedback
       await new Promise((r) => setTimeout(r, 300));
@@ -256,27 +250,7 @@ export default function App() {
     }
   }, [showToast]);
 
-  // Randomize centers on each fresh session / page load
-  const randomizedCenters = useMemo(() => {
-    return shuffleCenters(MEDICAL_CENTERS);
-  }, []);
-
-  // Pre-indexed items based on randomized centers
-  const indexedItems = useMemo(() => {
-    return randomizedCenters.map((r) => {
-      const normalizedName = norm(r.name);
-      const phones = [r.phone, ...(r.alt || [])].filter(Boolean).join(' ');
-      return {
-        r,
-        name: normalizedName,
-        nameS: squash(normalizedName),
-        words: normalizedName.split(' '),
-        ph: phones,
-      };
-    });
-  }, [randomizedCenters]);
-
-  // Compute category and street counts
+  // Compute category and street counts once
   const { typeCounts, streetCounts } = useMemo(() => {
     const tCounts: Record<string, number> = {};
     const sCounts: Record<string, number> = {};
@@ -291,69 +265,15 @@ export default function App() {
     return { typeCounts: tCounts, streetCounts: sCounts };
   }, []);
 
-  // Filtered and sorted centers
-  const filteredCenters = useMemo(() => {
-    const nq = norm(deferredQuery);
-    const tokens = nq ? nq.split(' ').filter(Boolean) : [];
-    const results: { center: MedicalCenter; score: number }[] = [];
-
-    for (const item of indexedItems) {
-      const { r, nameS, words, ph } = item;
-
-      // Tab filter: Saved
-      if (activeTab === 'saved' && !saved.has(r.k)) continue;
-
-      // Category filter
-      if (selectedType && r.type !== selectedType) continue;
-
-      // Street filter
-      if (selectedStreet && !r.streets.includes(selectedStreet)) continue;
-
-      // Night shift filter
-      if (onlyNightShift && !r.isNightShift) continue;
-
-      // Search token matching
-      let score = 0;
-      let matched = true;
-
-      for (const token of tokens) {
-        const tokenSquash = squash(token);
-        if (/^\d{3,}$/.test(token)) {
-          if (ph.includes(token)) {
-            score += 2;
-          } else {
-            matched = false;
-            break;
-          }
-        } else if (nameS.includes(tokenSquash)) {
-          score += words.some((w) => w.startsWith(token)) ? 4 : 2;
-        } else {
-          matched = false;
-          break;
-        }
-      }
-
-      if (matched) {
-        results.push({ center: r, score });
-      }
-    }
-
-    if (tokens.length > 0) {
-      results.sort(
-        (a, b) => b.score - a.score || a.center.name.localeCompare(b.center.name, 'fa')
-      );
-    }
-
-    return results.map((x) => x.center);
-  }, [
-    indexedItems,
-    deferredQuery,
+  // Offload heavy filtering and sorting to dedicated Web Worker (keeps main UI thread at 60 FPS)
+  const filteredCenters = useCenterWorkerFilter({
+    query: deferredQuery,
     selectedType,
     selectedStreet,
     onlyNightShift,
-    activeTab,
     saved,
-  ]);
+    activeTab,
+  });
 
   const isSearching = deferredQuery.trim().length > 0;
 
@@ -506,7 +426,14 @@ export default function App() {
 
   if (isAdminRoute) {
     return (
-      <>
+      <Suspense
+        fallback={
+          <div className="min-h-screen bg-[#f2f5fa] flex flex-col items-center justify-center p-4">
+            <div className="w-9 h-9 border-3 border-[#0a4c9a] border-t-transparent rounded-full animate-spin mb-3" />
+            <div className="text-xs font-bold text-slate-600">در حال بارگذاری پنل مدیریت...</div>
+          </div>
+        }
+      >
         <AdminPanel
           onBackToApp={() => {
             if (window.location.hash === '#admin') {
@@ -526,7 +453,7 @@ export default function App() {
           showToast={showToast}
         />
         <Toast message={toastMessage} />
-      </>
+      </Suspense>
     );
   }
 
@@ -670,18 +597,13 @@ export default function App() {
             {/* Centers Grid / List */}
             {filteredCenters.length > 0 ? (
               <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {displayedCenters.map((center) => (
-                    <CenterCard
-                      key={center.k}
-                      center={center}
-                      isSaved={saved.has(center.k)}
-                      onToggleSave={handleToggleSave}
-                      onOpenDetail={handleOpenCenterDetail}
-                      onCopyPhone={handleCopyPhone}
-                    />
-                  ))}
-                </div>
+                <CenterList
+                  centers={displayedCenters}
+                  saved={saved}
+                  onToggleSave={handleToggleSave}
+                  onOpenDetail={handleOpenCenterDetail}
+                  onCopyPhone={handleCopyPhone}
+                />
 
                 {/* Search Encouragement & Limit Box */}
                 {hasMoreToSearch && (
@@ -784,7 +706,9 @@ export default function App() {
 
         {/* Tab 2: Guide & Sinad Claim Portal */}
         {activeTab === 'guide' && (
-          <GuideTab onOpenOnboarding={() => setIsOnboardingOpen(true)} />
+          <Suspense fallback={<div className="p-12 text-center text-xs text-slate-400">در حال بارگذاری راهنما...</div>}>
+            <GuideTab onOpenOnboarding={() => setIsOnboardingOpen(true)} />
+          </Suspense>
         )}
 
         {/* Subtle App & Developer Footer Credit */}
@@ -833,47 +757,59 @@ export default function App() {
         savedCount={saved.size}
       />
 
-      {/* Modals & Dialogs */}
-      <CenterDetailModal
-        center={selectedCenter}
-        onClose={() => setSelectedCenter(null)}
-        isSaved={selectedCenter ? saved.has(selectedCenter.k) : false}
-        onToggleSave={handleToggleSave}
-        onCopyText={handleCopyText}
-        onOpenReport={setCenterForReport}
-      />
+      {/* Modals & Dialogs (Loaded on-demand only when triggered) */}
+      <Suspense fallback={null}>
+        {selectedCenter && (
+          <CenterDetailModal
+            center={selectedCenter}
+            onClose={() => setSelectedCenter(null)}
+            isSaved={saved.has(selectedCenter.k)}
+            onToggleSave={handleToggleSave}
+            onCopyText={handleCopyText}
+            onOpenReport={setCenterForReport}
+          />
+        )}
 
-      <StreetFilterModal
-        isOpen={isStreetFilterOpen}
-        onClose={() => setIsStreetFilterOpen(false)}
-        selectedStreet={selectedStreet}
-        onSelectStreet={(s) => {
-          setSelectedStreet(s);
-          setVisibleLimit(10);
-          if (activeTab !== 'centers') {
-            setActiveTab('centers');
-          }
-        }}
-        streetCounts={streetCounts}
-        totalCenters={MEDICAL_CENTERS.length}
-      />
+        {isStreetFilterOpen && (
+          <StreetFilterModal
+            isOpen={isStreetFilterOpen}
+            onClose={() => setIsStreetFilterOpen(false)}
+            selectedStreet={selectedStreet}
+            onSelectStreet={(s) => {
+              setSelectedStreet(s);
+              setVisibleLimit(10);
+              if (activeTab !== 'centers') {
+                setActiveTab('centers');
+              }
+            }}
+            streetCounts={streetCounts}
+            totalCenters={MEDICAL_CENTERS.length}
+          />
+        )}
 
-      <ReportModal
-        center={centerForReport}
-        onClose={() => setCenterForReport(null)}
-        onSubmitReport={handleSubmitReport}
-      />
+        {centerForReport && (
+          <ReportModal
+            center={centerForReport}
+            onClose={() => setCenterForReport(null)}
+            onSubmitReport={handleSubmitReport}
+          />
+        )}
 
-      <IOSInstallGuideModal
-        isOpen={isIOSGuideOpen}
-        onClose={() => setIsIOSGuideOpen(false)}
-      />
+        {isIOSGuideOpen && (
+          <IOSInstallGuideModal
+            isOpen={isIOSGuideOpen}
+            onClose={() => setIsIOSGuideOpen(false)}
+          />
+        )}
 
-      <QuickOnboardingModal
-        isOpen={isOnboardingOpen}
-        onClose={() => setIsOnboardingOpen(false)}
-        onStartSearch={handleFocusSearch}
-      />
+        {isOnboardingOpen && (
+          <QuickOnboardingModal
+            isOpen={isOnboardingOpen}
+            onClose={() => setIsOnboardingOpen(false)}
+            onStartSearch={handleFocusSearch}
+          />
+        )}
+      </Suspense>
 
       {/* Global Toast */}
       <Toast message={toastMessage} />

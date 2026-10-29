@@ -1,16 +1,4 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import {
-  collection,
-  query,
-  orderBy,
-  onSnapshot,
-  getDocs,
-  doc,
-  updateDoc,
-  deleteDoc,
-  addDoc,
-} from 'firebase/firestore';
-import { db } from '../lib/firebase';
 import { MedicalCenterReport, ReportStatus, ReportReason } from '../types';
 import { formatPersianDate, toFa } from '../utils/persian';
 import {
@@ -199,44 +187,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         }
       }
 
-      // 2. Also try Firestore and merge if available
-      try {
-        const reportsRef = collection(db, 'reports');
-        let snap;
-        try {
-          const q = query(reportsRef, orderBy('createdAt', 'desc'));
-          snap = await getDocs(q);
-        } catch {
-          snap = await getDocs(reportsRef);
-        }
-
-        const firestoreList: MedicalCenterReport[] = [];
-        snap.forEach((d) => {
-          firestoreList.push({ ...(d.data() as MedicalCenterReport), id: d.id });
-        });
-
-        if (firestoreList.length > 0) {
-          if (loaded.length === 0 && !sheetsQueried) {
-            loaded = firestoreList;
-            source = 'firestore';
-          } else {
-            // Merge unique reports from Firestore
-            const existingKeys = new Set(
-              loaded.map((r) => `${r.centerId}_${r.reason}_${r.createdAt.slice(0, 16)}`)
-            );
-            for (const fr of firestoreList) {
-              const k = `${fr.centerId}_${fr.reason}_${(fr.createdAt || '').slice(0, 16)}`;
-              if (!existingKeys.has(k)) {
-                loaded.push(fr);
-              }
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('Firestore fetch notice:', err);
-      }
-
-      // 3. Fallback to local storage only if remote sources were unreachable
+      // 2. Fallback to local storage only if Google Sheets was unreachable
       if (loaded.length === 0 && !sheetsQueried) {
         try {
           const localStored = JSON.parse(localStorage.getItem('krf_reports') || '[]');
@@ -270,9 +221,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         const sourceLabel =
           source === 'sheets'
             ? 'گوگل شیت (Google Sheets)'
-            : source === 'firestore'
-            ? 'سرور ابری فایربیس'
-            : 'حافظه محلی';
+            : 'حافظه محلی دستگاه';
         showToast(`همگام‌سازی از ${sourceLabel} انجام شد (${toFa(loaded.length)} گزارش)`);
       }
     },
@@ -434,19 +383,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     if (!isAuthenticated) return;
     fetchAllReports(false);
     fetchAllSearches(false);
-
-    // Optional firestore live listener
-    try {
-      const reportsRef = collection(db, 'reports');
-      const unsubscribe = onSnapshot(
-        reportsRef,
-        () => {
-          fetchAllReports(false);
-        },
-        () => {}
-      );
-      return () => unsubscribe();
-    } catch {}
   }, [isAuthenticated, fetchAllReports, fetchAllSearches]);
 
   // Handle Username/Password Login
@@ -520,42 +456,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   // Status changer for individual report
-  const handleUpdateStatus = async (reportId: string | undefined, newStatus: ReportStatus) => {
+  const handleUpdateStatus = (reportId: string | undefined, newStatus: ReportStatus) => {
     if (!reportId) return;
 
-    setReports((prev) =>
-      prev.map((r) => (r.id === reportId ? { ...r, status: newStatus } : r))
-    );
+    setReports((prev) => {
+      const updated = prev.map((r) => (r.id === reportId ? { ...r, status: newStatus } : r));
+      try {
+        localStorage.setItem('krf_admin_cached_reports', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
     showToast(`وضعیت به «${STATUS_CONFIG[newStatus].label}» تغییر یافت`);
-
-    try {
-      if (!reportId.startsWith('local-') && !reportId.startsWith('sheets-')) {
-        const reportRef = doc(db, 'reports', reportId);
-        await updateDoc(reportRef, {
-          status: newStatus,
-          updatedAt: new Date().toISOString(),
-        });
-      }
-    } catch (err) {
-      console.warn('Status update notice:', err);
-    }
   };
 
   // Delete report
-  const handleDeleteReport = async (reportId: string | undefined) => {
+  const handleDeleteReport = (reportId: string | undefined) => {
     if (!reportId) return;
     if (!window.confirm('آیا از حذف این گزارش مطمئن هستید؟')) return;
 
-    setReports((prev) => prev.filter((r) => r.id !== reportId));
+    setReports((prev) => {
+      const updated = prev.filter((r) => r.id !== reportId);
+      try {
+        localStorage.setItem('krf_admin_cached_reports', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
     showToast('گزارش حذف شد');
-
-    try {
-      if (!reportId.startsWith('local-') && !reportId.startsWith('sheets-')) {
-        await deleteDoc(doc(db, 'reports', reportId));
-      }
-    } catch (err) {
-      console.warn('Delete notice:', err);
-    }
   };
 
   // Filtered raw reports
