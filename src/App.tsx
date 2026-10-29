@@ -15,7 +15,7 @@ import { TabType, ReportReason } from './types';
 import { norm, squash, toFa } from './utils/persian';
 import { usePWAInstall } from './hooks/usePWAInstall';
 import { ExternalLink, X, RotateCcw, Bookmark, Info, Sparkles, Search, MapPin, Mail, ChevronDown } from 'lucide-react';
-import { collection, addDoc, doc, getDocFromServer } from 'firebase/firestore';
+import { collection, addDoc } from 'firebase/firestore';
 import { db } from './lib/firebase';
 import { AdminPanel } from './components/AdminPanel';
 import { submitReportToSheets, recordSearchToSheets, flushOfflineSearchQueue } from './lib/sheets';
@@ -39,6 +39,7 @@ export default function App() {
 
   // Filters
   const [query, setQuery] = useState('');
+  const deferredQuery = React.useDeferredValue(query);
   const [selectedType, setSelectedType] = useState('');
   const [selectedStreet, setSelectedStreet] = useState('');
   const [onlyNightShift, setOnlyNightShift] = useState(false);
@@ -143,19 +144,7 @@ export default function App() {
     };
   }, []);
 
-  // Test Firestore connection on boot (Skill constraint)
-  useEffect(() => {
-    async function testConnection() {
-      try {
-        await getDocFromServer(doc(db, 'test', 'connection'));
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('the client is offline')) {
-          console.warn('Firebase client is offline or network restricted.');
-        }
-      }
-    }
-    testConnection();
-  }, []);
+
 
   // Submit report optimistically to Google Sheets and cloud storage
   const handleSubmitReport = useCallback(
@@ -307,7 +296,7 @@ export default function App() {
 
   // Filtered and sorted centers
   const filteredCenters = useMemo(() => {
-    const nq = norm(query);
+    const nq = norm(deferredQuery);
     const tokens = nq ? nq.split(' ').filter(Boolean) : [];
     const results: { center: MedicalCenter; score: number }[] = [];
 
@@ -361,7 +350,7 @@ export default function App() {
     return results.map((x) => x.center);
   }, [
     indexedItems,
-    query,
+    deferredQuery,
     selectedType,
     selectedStreet,
     onlyNightShift,
@@ -369,7 +358,7 @@ export default function App() {
     saved,
   ]);
 
-  const isSearching = query.trim().length > 0;
+  const isSearching = deferredQuery.trim().length > 0;
 
   // Capped cards to encourage search (limit to ~10 on browsing, full list on search or saved)
   const displayedCenters = useMemo(() => {

@@ -12,7 +12,7 @@ interface CenterCardProps {
   onCopyPhone: (phone: string, e: React.MouseEvent) => void;
 }
 
-export const CenterCard: React.FC<CenterCardProps> = ({
+export const CenterCard: React.FC<CenterCardProps> = React.memo(({
   center,
   isSaved,
   onToggleSave,
@@ -161,4 +161,4 @@ export const CenterCard: React.FC<CenterCardProps> = ({
       </div>
     </article>
   );
-};
+});

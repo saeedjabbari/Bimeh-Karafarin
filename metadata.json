@@ -1,6 +1,6 @@
 {
   "name": "Remix RST Karafarin",
-  "description": "",
+  "description": "سامانه جستجو و راهنمای جامع مراکز درمانی طرف قرارداد بیمه کارآفرین در ارومیه، مراکز شبانه‌روزی، تفکیک خیابان‌ها، مسیریابی و راهنمای ثبت خسارت سیناد.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
