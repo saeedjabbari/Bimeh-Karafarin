@@ -41,7 +41,7 @@ export const CategoryFilterModal: React.FC<CategoryFilterModalProps> = ({
       />
 
       {/* Modal Dialog (Fits completely on screen without scrolling) */}
-      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl z-10 border border-slate-200 overflow-hidden mx-auto my-auto animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl z-10 border border-slate-200 overflow-hidden mx-auto my-auto animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="px-4 py-3 bg-gradient-to-r from-slate-50 via-white to-blue-50/40 border-b border-slate-200/80 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
@@ -61,7 +61,7 @@ export const CategoryFilterModal: React.FC<CategoryFilterModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="h-8 px-3 rounded-full bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-200 font-black text-xs flex items-center gap-1 transition active:scale-95"
+            className="h-8 px-3 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-200 font-black text-xs flex items-center gap-1 transition active:scale-95"
             aria-label="بستن"
           >
             <span>بستن</span>
@@ -71,7 +71,7 @@ export const CategoryFilterModal: React.FC<CategoryFilterModalProps> = ({
 
         {/* Pinterest/Bento Grid without scrolling */}
         <div className="p-3 sm:p-4 bg-[#f8fafc]">
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-2.5">
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-2.5">
             {CATEGORY_ITEMS.map((item) => {
               const isSelected = item.key === '' ? selectedType === '' : selectedType === item.key;
               const count = item.key === '' ? totalCenters : typeCounts[item.key] || 0;

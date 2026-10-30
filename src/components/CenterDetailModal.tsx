@@ -122,7 +122,7 @@ export const CenterDetailModal: React.FC<CenterDetailModalProps> = ({
               </div>
 
               <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-1">
-                <span className="font-semibold text-slate-700">{center.type}</span>
+                <span className="font-semibold text-slate-700">{center.specialty || center.type}</span>
                 {center.ownership && (
                   <>
                     <span aria-hidden="true" className="text-slate-300">·</span>
@@ -137,7 +137,7 @@ export const CenterDetailModal: React.FC<CenterDetailModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="h-9 px-3.5 rounded-full bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-300 font-extrabold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-2xs shrink-0"
+            className="h-9 px-3.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-200 font-extrabold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-2xs shrink-0"
             title="بستن و بازگشت به لیست"
             aria-label="بستن پنجره"
           >
@@ -148,6 +148,19 @@ export const CenterDetailModal: React.FC<CenterDetailModalProps> = ({
 
         {/* Modal Content */}
         <div className="p-4 sm:p-5 space-y-4 text-xs">
+          {/* Specialty Highlight Box if exists */}
+          {center.specialty && (
+            <div className="bg-sky-50/80 rounded-xl p-3 border border-sky-100 flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center shrink-0">
+                <Icon className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10.5px] font-bold text-sky-800">تخصص و گرایش پزشکی</div>
+                <div className="text-xs font-black text-slate-900 mt-0.5">{center.specialty}</div>
+              </div>
+            </div>
+          )}
+
           {/* Address Box */}
           <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-1">
             <div className="flex items-center gap-1.5 text-slate-500 font-bold">

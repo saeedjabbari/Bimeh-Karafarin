@@ -9,10 +9,14 @@ import {
   Activity,
   Pill,
   Scissors,
-  UserRound,
   Atom,
   Cross,
-  LayoutGrid
+  LayoutGrid,
+  Eye,
+  Baby,
+  Thermometer,
+  Bone,
+  UserRound
 } from 'lucide-react';
 
 export interface CategoryMeta {
@@ -84,12 +88,12 @@ export const CATEGORY_ITEMS: CategoryCardItem[] = [
     key: 'بیمارستان',
     label: 'بیمارستان‌ها',
     icon: Building2,
-    gradient: 'from-rose-500 to-red-600',
-    bgLight: 'bg-rose-50/80 hover:bg-rose-100/70',
-    borderLight: 'border-rose-200/90',
-    textCol: 'text-rose-900',
-    iconBg: 'bg-rose-100 text-rose-700',
-    badgeBg: 'bg-rose-100 text-rose-800',
+    gradient: 'from-blue-700 to-indigo-800',
+    bgLight: 'bg-blue-50/80 hover:bg-blue-100/70',
+    borderLight: 'border-blue-200/90',
+    textCol: 'text-blue-900',
+    iconBg: 'bg-blue-100 text-blue-700',
+    badgeBg: 'bg-blue-100 text-blue-800',
   },
   {
     key: 'تصویربرداری',
@@ -128,7 +132,7 @@ export const CATEGORY_ITEMS: CategoryCardItem[] = [
     key: 'مرکز جراحی محدود',
     label: 'جراحی محدود',
     icon: Scissors,
-    gradient: 'from-amber-500 to-orange-600',
+    gradient: 'from-amber-500 to-amber-700',
     bgLight: 'bg-amber-50/80 hover:bg-amber-100/70',
     borderLight: 'border-amber-200/90',
     textCol: 'text-amber-900',
@@ -139,17 +143,17 @@ export const CATEGORY_ITEMS: CategoryCardItem[] = [
     key: 'پزشکی هسته‌ای',
     label: 'پزشکی هسته‌ای',
     icon: Atom,
-    gradient: 'from-fuchsia-500 to-pink-600',
-    bgLight: 'bg-fuchsia-50/80 hover:bg-fuchsia-100/70',
-    borderLight: 'border-fuchsia-200/90',
-    textCol: 'text-fuchsia-900',
-    iconBg: 'bg-fuchsia-100 text-fuchsia-700',
-    badgeBg: 'bg-fuchsia-100 text-fuchsia-800',
+    gradient: 'from-violet-600 to-purple-700',
+    bgLight: 'bg-violet-50/80 hover:bg-violet-100/70',
+    borderLight: 'border-violet-200/90',
+    textCol: 'text-violet-900',
+    iconBg: 'bg-violet-100 text-violet-700',
+    badgeBg: 'bg-violet-100 text-violet-800',
   },
   {
-    key: 'مطب',
-    label: 'مطب پزشکان',
-    icon: UserRound,
+    key: 'کلینیک',
+    label: 'کلینیک‌ها',
+    icon: Cross,
     gradient: 'from-slate-600 to-slate-800',
     bgLight: 'bg-slate-100 hover:bg-slate-200/70',
     borderLight: 'border-slate-300',
@@ -158,15 +162,48 @@ export const CATEGORY_ITEMS: CategoryCardItem[] = [
     badgeBg: 'bg-slate-200 text-slate-700',
   },
   {
-    key: 'کلینیک',
-    label: 'کلینیک‌ها',
-    icon: Cross,
-    gradient: 'from-blue-600 to-indigo-700',
-    bgLight: 'bg-blue-50/80 hover:bg-blue-100/70',
-    borderLight: 'border-blue-200/90',
-    textCol: 'text-blue-900',
-    iconBg: 'bg-blue-100 text-blue-700',
-    badgeBg: 'bg-blue-100 text-blue-800',
+    key: 'چشم پزشکی',
+    label: 'چشم پزشکی',
+    icon: Eye,
+    gradient: 'from-sky-600 to-blue-700',
+    bgLight: 'bg-sky-50/80 hover:bg-sky-100/70',
+    borderLight: 'border-sky-200/90',
+    textCol: 'text-sky-900',
+    iconBg: 'bg-sky-100 text-sky-700',
+    badgeBg: 'bg-sky-100 text-sky-800',
+  },
+  {
+    key: 'زنان و زایمان',
+    label: 'زنان و زایمان',
+    icon: Baby,
+    gradient: 'from-purple-600 to-indigo-700',
+    bgLight: 'bg-purple-50/80 hover:bg-purple-100/70',
+    borderLight: 'border-purple-200/90',
+    textCol: 'text-purple-900',
+    iconBg: 'bg-purple-100 text-purple-700',
+    badgeBg: 'bg-purple-100 text-purple-800',
+  },
+  {
+    key: 'عفونی و گرمسیری',
+    label: 'عفونی و گرمسیری',
+    icon: Thermometer,
+    gradient: 'from-emerald-600 to-teal-700',
+    bgLight: 'bg-emerald-50/80 hover:bg-emerald-100/70',
+    borderLight: 'border-emerald-200/90',
+    textCol: 'text-emerald-900',
+    iconBg: 'bg-emerald-100 text-emerald-700',
+    badgeBg: 'bg-emerald-100 text-emerald-800',
+  },
+  {
+    key: 'روماتولوژی و داخلی',
+    label: 'روماتولوژی و داخلی',
+    icon: Bone,
+    gradient: 'from-cyan-700 to-blue-800',
+    bgLight: 'bg-cyan-50/80 hover:bg-cyan-100/70',
+    borderLight: 'border-cyan-200/90',
+    textCol: 'text-cyan-900',
+    iconBg: 'bg-cyan-100 text-cyan-700',
+    badgeBg: 'bg-cyan-100 text-cyan-800',
   },
 ];
 
@@ -199,9 +236,9 @@ export const CATEGORY_CONFIG: Record<string, CategoryMeta> = {
   'بیمارستان': {
     label: 'بیمارستان',
     icon: Building2,
-    bg: 'bg-rose-50',
-    text: 'text-rose-700',
-    borderColor: 'border-rose-200'
+    bg: 'bg-blue-50',
+    text: 'text-blue-700',
+    borderColor: 'border-blue-200'
   },
   'درمانگاه': {
     label: 'درمانگاه',
@@ -258,6 +295,34 @@ export const CATEGORY_CONFIG: Record<string, CategoryMeta> = {
     bg: 'bg-blue-50',
     text: 'text-blue-700',
     borderColor: 'border-blue-200'
+  },
+  'چشم پزشکی': {
+    label: 'چشم پزشکی',
+    icon: Eye,
+    bg: 'bg-sky-50',
+    text: 'text-sky-700',
+    borderColor: 'border-sky-200'
+  },
+  'زنان و زایمان': {
+    label: 'زنان و زایمان',
+    icon: Baby,
+    bg: 'bg-purple-50',
+    text: 'text-purple-700',
+    borderColor: 'border-purple-200'
+  },
+  'عفونی و گرمسیری': {
+    label: 'عفونی و گرمسیری',
+    icon: Thermometer,
+    bg: 'bg-emerald-50',
+    text: 'text-emerald-700',
+    borderColor: 'border-emerald-200'
+  },
+  'روماتولوژی و داخلی': {
+    label: 'روماتولوژی و داخلی',
+    icon: Bone,
+    bg: 'bg-cyan-50',
+    text: 'text-cyan-700',
+    borderColor: 'border-cyan-200'
   }
 };
 

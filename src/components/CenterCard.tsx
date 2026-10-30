@@ -56,7 +56,7 @@ export const CenterCard: React.FC<CenterCardProps> = React.memo(({
 
             {/* Zero-Pill Metadata Line */}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 mt-1">
-              <span className="font-semibold text-slate-700">{center.type}</span>
+              <span className="font-semibold text-slate-700">{center.specialty || center.type}</span>
               {center.ownership && (
                 <>
                   <span aria-hidden="true" className="text-slate-300">·</span>

@@ -36,7 +36,8 @@ function fallbackFilter(
     let matched = true;
 
     if (tokens.length > 0) {
-      const normalizedName = norm(r.name);
+      const searchableText = [r.name, r.type, r.specialty, ...(r.alt || [])].filter(Boolean).join(' ');
+      const normalizedName = norm(searchableText);
       const nameS = squash(normalizedName);
       const words = normalizedName.split(' ');
       const ph = [r.phone, ...(r.alt || [])].filter(Boolean).join(' ');

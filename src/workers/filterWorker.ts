@@ -30,7 +30,8 @@ function shuffleCenters(centers: MedicalCenter[]): MedicalCenter[] {
 const initialRandomized = shuffleCenters(MEDICAL_CENTERS);
 
 const indexedItems = initialRandomized.map((r) => {
-  const normalizedName = norm(r.name);
+  const searchableText = [r.name, r.type, r.specialty, ...(r.alt || [])].filter(Boolean).join(' ');
+  const normalizedName = norm(searchableText);
   const phones = [r.phone, ...(r.alt || [])].filter(Boolean).join(' ');
   return {
     r,
