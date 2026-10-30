@@ -19,6 +19,7 @@ const StreetFilterModal = lazy(() => import('./components/StreetFilterModal').th
 const ReportModal = lazy(() => import('./components/ReportModal').then((m) => ({ default: m.ReportModal })));
 const GuideTab = lazy(() => import('./components/GuideTab').then((m) => ({ default: m.GuideTab })));
 const IOSInstallGuideModal = lazy(() => import('./components/IOSInstallGuideModal').then((m) => ({ default: m.IOSInstallGuideModal })));
+const CategoryFilterModal = lazy(() => import('./components/CategoryFilterModal').then((m) => ({ default: m.CategoryFilterModal })));
 const QuickOnboardingModal = lazy(() => import('./components/QuickOnboardingModal').then((m) => ({ default: m.QuickOnboardingModal })));
 
 const STORAGE_KEY = 'krf_saved';
@@ -48,6 +49,7 @@ export default function App() {
   // Modals & Sheets
   const [selectedCenter, setSelectedCenter] = useState<MedicalCenter | null>(null);
   const [isStreetFilterOpen, setIsStreetFilterOpen] = useState(false);
+  const [isCategoryFilterOpen, setIsCategoryFilterOpen] = useState(false);
   const [centerForReport, setCenterForReport] = useState<MedicalCenter | null>(null);
   const [isIOSGuideOpen, setIsIOSGuideOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
@@ -389,6 +391,11 @@ export default function App() {
     setActiveTab((prev) => (prev !== 'centers' ? 'centers' : prev));
   }, []);
 
+  const handleOpenCategoryFilter = useCallback(() => {
+    setIsCategoryFilterOpen(true);
+    setActiveTab((prev) => (prev !== 'centers' ? 'centers' : prev));
+  }, []);
+
   const handleToggleNightShift = useCallback(() => {
     React.startTransition(() => {
       setOnlyNightShift((prev) => !prev);
@@ -477,6 +484,7 @@ export default function App() {
         typeCounts={typeCounts}
         selectedStreet={selectedStreet}
         onOpenStreetFilter={handleOpenStreetFilter}
+        onOpenCategoryFilter={handleOpenCategoryFilter}
         onlyNightShift={onlyNightShift}
         onToggleNightShift={handleToggleNightShift}
         resultCount={filteredCenters.length}
@@ -788,6 +796,17 @@ export default function App() {
               }
             }}
             streetCounts={streetCounts}
+            totalCenters={MEDICAL_CENTERS.length}
+          />
+        )}
+
+        {isCategoryFilterOpen && (
+          <CategoryFilterModal
+            isOpen={isCategoryFilterOpen}
+            onClose={() => setIsCategoryFilterOpen(false)}
+            selectedType={selectedType}
+            onSelectType={handleSelectType}
+            typeCounts={typeCounts}
             totalCenters={MEDICAL_CENTERS.length}
           />
         )}

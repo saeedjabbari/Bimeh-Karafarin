@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
-import { Search, X, SlidersHorizontal, Download, Moon, ShieldCheck, MapPin } from 'lucide-react';
+import { Search, X, SlidersHorizontal, Download, Moon, ShieldCheck, MapPin, LayoutGrid, Sparkles } from 'lucide-react';
 import { toFa } from '../utils/persian';
-import { CATEGORY_CONFIG, getCategoryMeta } from '../constants/categories';
 
 interface HeaderProps {
   query: string;
@@ -11,6 +10,7 @@ interface HeaderProps {
   typeCounts: Record<string, number>;
   selectedStreet: string;
   onOpenStreetFilter: () => void;
+  onOpenCategoryFilter?: () => void;
   onlyNightShift: boolean;
   onToggleNightShift: () => void;
   resultCount: number;
@@ -29,6 +29,7 @@ export const Header: React.FC<HeaderProps> = React.memo(({
   typeCounts,
   selectedStreet,
   onOpenStreetFilter,
+  onOpenCategoryFilter,
   onlyNightShift,
   onToggleNightShift,
   resultCount,
@@ -54,13 +55,6 @@ export const Header: React.FC<HeaderProps> = React.memo(({
 
   const totalCount = useMemo(() => {
     return Object.values(typeCounts).reduce((a, b) => a + b, 0);
-  }, [typeCounts]);
-
-  const categoryKeys = useMemo(() => {
-    return [
-      'all',
-      ...Object.keys(typeCounts).sort((a, b) => (typeCounts[b] || 0) - (typeCounts[a] || 0)),
-    ];
   }, [typeCounts]);
 
   return (
@@ -170,39 +164,59 @@ export const Header: React.FC<HeaderProps> = React.memo(({
         </div>
       </div>
 
-      {/* Horizontal Category Scroller */}
+      {/* Category Bar: All on right, Specialty Filter on left */}
       <div className="bg-[#093e7d] border-t border-blue-900/40">
-        <div className="max-w-4xl mx-auto px-2 py-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-          {categoryKeys.map((catKey) => {
-            const isAll = catKey === 'all';
-            const isSelected = isAll ? selectedType === '' : selectedType === catKey;
-            const meta = isAll ? CATEGORY_CONFIG.all : getCategoryMeta(catKey);
-            const Icon = meta.icon;
-            const count = isAll ? totalCount : typeCounts[catKey] || 0;
+        <div className="max-w-4xl mx-auto px-3 py-2 flex items-center gap-2">
+          {/* اول: دکمه «همه» در سمت راست (در راست‌به‌چپ اولین آیتم سمت راست قرار می‌گیرد) */}
+          <button
+            type="button"
+            onClick={() => onSelectType('')}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-150 select-none active:scale-95 shrink-0 ${
+              selectedType === ''
+                ? 'bg-white text-[#0a4c9a] font-black shadow-sm ring-2 ring-white/50'
+                : 'bg-white/10 text-blue-100 hover:bg-white/15'
+            }`}
+          >
+            <LayoutGrid className="w-3.5 h-3.5 text-inherit" />
+            <span>همه</span>
+            <span
+              className={`text-[11px] tabular-nums font-black px-1.5 py-0.2 rounded-full ${
+                selectedType === '' ? 'bg-blue-100 text-[#0a4c9a]' : 'bg-white/15 text-blue-100'
+              }`}
+            >
+              {toFa(totalCount)}
+            </span>
+          </button>
 
-            return (
-              <button
-                key={catKey}
-                type="button"
-                onClick={() => onSelectType(isAll ? '' : catKey)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors duration-150 shrink-0 select-none active:scale-95 ${
-                  isSelected
-                    ? 'bg-white text-[#0a4c9a] shadow-xs'
-                    : 'text-blue-100/90 hover:bg-white/10'
-                }`}
-              >
-                <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-[#0a4c9a]' : 'text-blue-200'}`} />
-                <span>{meta.label}</span>
-                <span
-                  className={`text-[10.5px] tabular-nums font-bold px-1.5 py-0.2 rounded-full ${
-                    isSelected ? 'bg-blue-100 text-[#0a4c9a]' : 'bg-white/10 text-blue-200'
-                  }`}
-                >
-                  {toFa(count)}
+          {/* دوم: دکمه «فیلتر تخصص» در سمت چپِ دکمه همه */}
+          <button
+            type="button"
+            onClick={onOpenCategoryFilter}
+            className={`flex-1 flex items-center justify-between gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all select-none active:scale-95 shadow-sm ${
+              selectedType
+                ? 'bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 text-white ring-2 ring-white/70 shadow-md'
+                : 'bg-gradient-to-r from-teal-400 via-emerald-400 to-cyan-400 hover:from-teal-300 hover:to-cyan-300 text-slate-950 shadow-md'
+            }`}
+            title="مشاهده و انتخاب تخصص‌ها"
+          >
+            <div className="flex items-center gap-1.5 truncate">
+              <Sparkles className="w-3.5 h-3.5 shrink-0 text-inherit animate-pulse" />
+              <span className="truncate">
+                {selectedType ? `تخصص: ${selectedType}` : 'فیلتر تخصص‌ها'}
+              </span>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              {selectedType ? (
+                <span className="bg-black/25 text-white text-[10px] px-2 py-0.5 rounded-md font-bold">
+                  تغییر ▾
                 </span>
-              </button>
-            );
-          })}
+              ) : (
+                <span className="bg-slate-950/15 text-slate-950 text-[10px] px-2 py-0.5 rounded-md font-extrabold flex items-center gap-0.5">
+                  انتخاب ▾
+                </span>
+              )}
+            </div>
+          </button>
         </div>
       </div>
     </header>
