@@ -12,7 +12,8 @@ import {
   AlertCircle,
   Hash,
   CheckCircle2,
-  CalendarCheck
+  CalendarCheck,
+  Moon
 } from 'lucide-react';
 import { MedicalCenter } from '../data/centers';
 import { fmtPhone, toFa, getGoogleMapUrl } from '../utils/persian';
@@ -104,21 +105,28 @@ export const CenterDetailModal: React.FC<CenterDetailModalProps> = ({
               <Icon className="w-6 h-6" />
             </div>
             <div className="min-w-0 flex-1">
-              <h2 className="text-base font-extrabold text-slate-900 leading-snug truncate">
-                {center.name}
-              </h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-base font-extrabold text-slate-900 leading-snug">
+                  {center.name}
+                </h2>
+
+                {center.isNightShift && (
+                  <span
+                    className="inline-flex items-center gap-1 bg-amber-100/90 text-amber-900 border border-amber-300/80 text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-2xs shrink-0 select-none"
+                    title="مرکز درمانی شبانه‌روزی (۲۴ ساعته فعال)"
+                  >
+                    <Moon className="w-3.5 h-3.5 text-amber-500 fill-amber-400 shrink-0" />
+                    <span>شبانه‌روزی</span>
+                  </span>
+                )}
+              </div>
+
               <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-1">
                 <span className="font-semibold text-slate-700">{center.type}</span>
                 {center.ownership && (
                   <>
                     <span aria-hidden="true" className="text-slate-300">·</span>
                     <span>{center.ownership}</span>
-                  </>
-                )}
-                {center.isNightShift && (
-                  <>
-                    <span aria-hidden="true" className="text-slate-300">·</span>
-                    <span className="text-amber-700 font-bold">شبانه‌روزی</span>
                   </>
                 )}
               </div>

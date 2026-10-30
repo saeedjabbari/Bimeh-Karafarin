@@ -1,5 +1,5 @@
 import React from 'react';
-import { Phone, Copy, Navigation, Bookmark, BookmarkCheck, MapPin, Search, Info } from 'lucide-react';
+import { Phone, Copy, Navigation, Bookmark, BookmarkCheck, MapPin, Search, Info, Moon } from 'lucide-react';
 import { MedicalCenter } from '../data/centers';
 import { fmtPhone, getGoogleMapUrl, getSearchPhoneUrl } from '../utils/persian';
 import { getCategoryMeta } from '../constants/categories';
@@ -38,9 +38,21 @@ export const CenterCard: React.FC<CenterCardProps> = React.memo(({
           </div>
 
           <div className="min-w-0 flex-1">
-            <h2 className="text-[15px] font-bold text-slate-900 group-hover:text-[#0a4c9a] transition leading-snug">
-              {center.name}
-            </h2>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <h2 className="text-[15px] font-bold text-slate-900 group-hover:text-[#0a4c9a] transition leading-snug">
+                {center.name}
+              </h2>
+
+              {center.isNightShift && (
+                <span
+                  className="inline-flex items-center gap-1 bg-amber-100/90 text-amber-900 border border-amber-300/80 text-[10.5px] font-black px-2 py-0.5 rounded-full shadow-2xs shrink-0 select-none"
+                  title="مرکز درمانی شبانه‌روزی (۲۴ ساعته فعال)"
+                >
+                  <Moon className="w-3 h-3 text-amber-500 fill-amber-400 shrink-0" />
+                  <span>شبانه‌روزی</span>
+                </span>
+              )}
+            </div>
 
             {/* Zero-Pill Metadata Line */}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 mt-1">
@@ -49,12 +61,6 @@ export const CenterCard: React.FC<CenterCardProps> = React.memo(({
                 <>
                   <span aria-hidden="true" className="text-slate-300">·</span>
                   <span>{center.ownership}</span>
-                </>
-              )}
-              {center.isNightShift && (
-                <>
-                  <span aria-hidden="true" className="text-slate-300">·</span>
-                  <span className="text-amber-700 font-bold">شبانه‌روزی</span>
                 </>
               )}
               <span aria-hidden="true" className="text-slate-300">·</span>
