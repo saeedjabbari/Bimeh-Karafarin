@@ -7,7 +7,6 @@
   "scope": "./",
   "display": "standalone",
   "display_override": [
-    "window-controls-overlay",
     "standalone",
     "minimal-ui"
   ],
@@ -22,6 +21,12 @@
     "lifestyle"
   ],
   "prefer_related_applications": false,
+  "related_applications": [
+    {
+      "platform": "play",
+      "id": "io.github.saeedjabbari.twa"
+    }
+  ],
   "icons": [
     {
       "src": "icons/icon-192.png",
