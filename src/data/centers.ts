@@ -554,14 +554,16 @@ export const MEDICAL_CENTERS: MedicalCenter[] = [
   },
   {
     "k": 34,
-    "name": "مطب دندانپزشکی (نام ثبت نشده)",
+    "name": "مطب دندانپزشکی دکتر بهار بابازاده",
     "id": "",
     "address": "ارومیه - بلوار والفجر ۱، خیابان فرهنگ، جنب فروشگاه کوروش، پلاک ۵۳",
     "phone": "04433369144",
     "ownership": "",
     "type": "دندانپزشکی",
     "phoneWarn": "",
-    "streets": [],
+    "streets": [
+      "والفجر"
+    ],
     "pid": "ChIJ1STOawBTBUARRzPvEOrqQfI",
     "isNightShift": false
   },
