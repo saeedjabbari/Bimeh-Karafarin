@@ -154,16 +154,16 @@ export const QuickOnboardingModal: React.FC<QuickOnboardingModalProps> = ({
   const isLast = currentSlide === ONBOARDING_SLIDES.length - 1;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-6 overflow-y-auto">
       {/* Backdrop */}
       <div
         onClick={() => handleFinish('close')}
-        className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs transition-opacity"
+        className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs transition-opacity cursor-pointer"
         aria-hidden="true"
       />
 
       {/* Modal Dialog */}
-      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative w-[calc(100%-1rem)] sm:w-full max-w-md bg-white rounded-3xl shadow-2xl z-10 border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200 mx-auto my-auto">
         {/* Top Header Graphic */}
         <div className="bg-gradient-to-l from-[#0a4c9a] to-[#1864c2] p-5 text-white relative">
           <div className="flex items-center justify-between">
@@ -174,7 +174,7 @@ export const QuickOnboardingModal: React.FC<QuickOnboardingModalProps> = ({
 
             <button
               onClick={() => handleFinish('close')}
-              className="text-xs text-blue-100/90 hover:text-white font-bold px-2 py-1 rounded-lg hover:bg-white/10 transition"
+              className="text-xs text-blue-100/90 hover:text-white font-bold px-2.5 py-1 rounded-lg hover:bg-white/10 transition"
               title="رد کردن راهنما"
             >
               رد کردن
@@ -190,7 +190,7 @@ export const QuickOnboardingModal: React.FC<QuickOnboardingModalProps> = ({
         </div>
 
         {/* Current Slide Content */}
-        <div className="p-6 space-y-4 min-h-[250px] flex flex-col justify-between">
+        <div className="p-5 sm:p-6 space-y-4 min-h-[250px] flex flex-col justify-between">
           <div className="space-y-3.5">
             <div className="flex items-center justify-between">
               <span
@@ -246,33 +246,43 @@ export const QuickOnboardingModal: React.FC<QuickOnboardingModalProps> = ({
           </div>
         </div>
 
-        {/* Footer Navigation Buttons */}
-        <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2">
-          {currentSlide > 0 ? (
-            <button
-              type="button"
-              onClick={handlePrev}
-              className="py-2.5 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs flex items-center gap-1 transition active:scale-95"
-            >
-              <ChevronRight className="w-4 h-4" />
-              <span>قبلی</span>
-            </button>
-          ) : (
-            <div />
-          )}
-
+        {/* Footer Navigation Buttons: Next (Large, prominent under right thumb), Previous (Smaller, compact on left) */}
+        <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2.5">
+          {/* Right side in RTL: Large Primary Next / Start button (Thumb-friendly & dominant) */}
           <button
             type="button"
             onClick={handleNext}
-            className={`py-3 px-5 rounded-xl text-white font-extrabold text-xs sm:text-sm flex items-center gap-2 transition active:scale-98 shadow-md ${
+            className={`flex-[3] min-h-[50px] py-3.5 px-5 rounded-2xl text-white font-black text-sm sm:text-base flex items-center justify-center gap-2 transition active:scale-98 shadow-md hover:shadow-lg ${
               isLast
                 ? 'bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800'
                 : 'bg-[#0a4c9a] hover:bg-blue-900'
             }`}
           >
             <span>{isLast ? 'شروع و ورود به برنامه' : 'گام بعدی'}</span>
-            <ChevronLeft className="w-4 h-4" />
+            <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
+
+          {/* Left side in RTL: Smaller, compact Previous / Skip button */}
+          {currentSlide > 0 ? (
+            <button
+              type="button"
+              onClick={handlePrev}
+              className="min-h-[38px] h-10 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 font-bold text-[11.5px] flex items-center justify-center gap-1 transition active:scale-95 shrink-0"
+              title="بازگشت به گام قبلی"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+              <span>قبلی</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => handleFinish('close')}
+              className="min-h-[38px] h-10 px-3 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-100 text-slate-500 hover:text-slate-800 font-bold text-[11.5px] flex items-center justify-center gap-1 transition active:scale-95 shrink-0"
+              title="رد کردن راهنما"
+            >
+              <span>رد کردن</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

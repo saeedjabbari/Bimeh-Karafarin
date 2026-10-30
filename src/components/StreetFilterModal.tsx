@@ -25,16 +25,16 @@ export const StreetFilterModal: React.FC<StreetFilterModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
       {/* Backdrop */}
       <div
         onClick={onClose}
-        className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
-        aria-hidden="true"
+        className="fixed inset-0 bg-slate-900/65 backdrop-blur-xs transition-opacity cursor-pointer"
+        aria-label="بستن پنجره با لمس پس‌زمینه"
       />
 
       {/* Modal Dialog */}
-      <div className="relative w-full max-w-2xl bg-[#f8fafc] rounded-t-3xl sm:rounded-3xl max-h-[90vh] flex flex-col shadow-2xl z-10 border border-slate-200 overflow-hidden">
+      <div className="relative w-[calc(100%-0.5rem)] sm:w-full max-w-2xl bg-[#f8fafc] rounded-3xl max-h-[90vh] flex flex-col shadow-2xl z-10 border border-slate-200 overflow-hidden mx-auto my-auto animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="p-4 bg-white border-b border-slate-200/80 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
@@ -50,11 +50,13 @@ export const StreetFilterModal: React.FC<StreetFilterModalProps> = ({
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition active:scale-95"
+            className="h-9 px-3 rounded-full bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-300 font-extrabold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-2xs"
             aria-label="بستن"
           >
-            <X className="w-4 h-4" />
+            <span>بستن</span>
+            <X className="w-4 h-4 text-slate-500" />
           </button>
         </div>
 

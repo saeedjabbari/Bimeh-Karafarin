@@ -85,34 +85,29 @@ export const CenterDetailModal: React.FC<CenterDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
       {/* Scrim Overlay */}
       <div
         onClick={onClose}
-        className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
-        aria-hidden="true"
+        className="fixed inset-0 bg-slate-900/65 backdrop-blur-xs transition-opacity cursor-pointer"
+        aria-label="بستن پنجره با لمس پس‌زمینه"
       />
 
       {/* Sheet Panel */}
-      <div className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-2xl max-h-[90vh] overflow-y-auto overscroll-contain shadow-2xl z-10 border border-slate-200">
-        {/* Grab Handle (Mobile) */}
-        <div className="sm:hidden pt-3 pb-1 flex justify-center">
-          <div className="w-10 h-1.5 rounded-full bg-slate-300" />
-        </div>
-
+      <div className="relative w-[calc(100%-0.5rem)] sm:w-full max-w-lg bg-white rounded-3xl max-h-[90vh] overflow-y-auto overscroll-contain shadow-2xl z-10 border border-slate-200 mx-auto my-auto animate-in fade-in zoom-in-95 duration-200">
         {/* Modal Header */}
         <div className="p-4 sm:p-5 border-b border-slate-100 flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             <div
               className={`w-12 h-12 rounded-xl ${meta.bg} ${meta.text} flex items-center justify-center shrink-0 border ${meta.borderColor}`}
             >
               <Icon className="w-6 h-6" />
             </div>
-            <div>
-              <h2 className="text-base font-extrabold text-slate-900 leading-snug">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-base font-extrabold text-slate-900 leading-snug truncate">
                 {center.name}
               </h2>
-              <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-1">
                 <span className="font-semibold text-slate-700">{center.type}</span>
                 {center.ownership && (
                   <>
@@ -130,12 +125,16 @@ export const CenterDetailModal: React.FC<CenterDetailModalProps> = ({
             </div>
           </div>
 
+          {/* Highly Visible Prominent Close Button */}
           <button
+            type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition shrink-0"
+            className="h-9 px-3.5 rounded-full bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-300 font-extrabold text-xs flex items-center gap-1.5 transition active:scale-95 shadow-2xs shrink-0"
+            title="بستن و بازگشت به لیست"
             aria-label="بستن پنجره"
           >
-            <X className="w-4 h-4" />
+            <span>بستن</span>
+            <X className="w-4 h-4 text-slate-500" />
           </button>
         </div>
 
@@ -216,20 +215,20 @@ export const CenterDetailModal: React.FC<CenterDetailModalProps> = ({
             </p>
           </div>
 
-          {/* Primary Action Buttons */}
-          <div className="grid grid-cols-2 gap-2 pt-2">
+          {/* Primary Action Buttons: Call, Navigation, and Bookmark Button */}
+          <div className="flex items-center gap-2 pt-2">
             {center.phone ? (
               <a
                 href={`tel:${center.phone}`}
-                className="min-h-[46px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-98 shadow-sm"
+                className="flex-1 min-h-[46px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-98 shadow-sm"
               >
-                <Phone className="w-4 h-4" />
-                <span>تماس مستقیم</span>
+                <Phone className="w-4 h-4 shrink-0" />
+                <span className="whitespace-nowrap">تماس مستقیم</span>
               </a>
             ) : (
               <button
                 disabled
-                className="min-h-[46px] rounded-xl bg-slate-100 text-slate-400 font-medium text-xs flex items-center justify-center gap-1.5 cursor-not-allowed"
+                className="flex-1 min-h-[46px] rounded-xl bg-slate-100 text-slate-400 font-medium text-xs flex items-center justify-center gap-1.5 cursor-not-allowed"
               >
                 <span>بدون تلفن</span>
               </button>
@@ -239,38 +238,54 @@ export const CenterDetailModal: React.FC<CenterDetailModalProps> = ({
               href={mapUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="min-h-[46px] rounded-xl bg-[#0a4c9a] hover:bg-blue-900 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-98 shadow-sm"
+              className="flex-1 min-h-[46px] rounded-xl bg-[#0a4c9a] hover:bg-blue-900 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-98 shadow-sm"
             >
-              <Navigation className="w-4 h-4" />
-              <span>مسیریابی روی نقشه</span>
+              <Navigation className="w-4 h-4 shrink-0" />
+              <span className="whitespace-nowrap">مسیریابی</span>
             </a>
-          </div>
 
-          {/* Secondary Actions */}
-          {/* Secondary Actions */}
-          <div className="grid grid-cols-2 gap-2">
+            {/* Bookmark Button (Beside Navigation) */}
             <button
+              type="button"
               onClick={() => onToggleSave(center.k)}
-              className={`min-h-[42px] rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
+              className={`min-h-[46px] px-3 sm:px-3.5 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 shadow-xs shrink-0 ${
                 isSaved
                   ? 'bg-orange-50 border-orange-200 text-[#F15A31]'
                   : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
               }`}
+              title={isSaved ? 'حذف از نشان‌شده‌ها' : 'نشان کردن این مرکز'}
             >
               {isSaved ? (
                 <>
-                  <BookmarkCheck className="w-3.5 h-3.5 fill-[#F15A31]" />
-                  <span>نشان‌شده</span>
+                  <BookmarkCheck className="w-4 h-4 fill-[#F15A31] text-[#F15A31]" />
+                  <span className="whitespace-nowrap">نشان‌شده</span>
                 </>
               ) : (
                 <>
-                  <Bookmark className="w-3.5 h-3.5" />
-                  <span>نشان کردن</span>
+                  <Bookmark className="w-4 h-4 text-slate-600" />
+                  <span className="whitespace-nowrap">نشان کردن</span>
                 </>
               )}
             </button>
+          </div>
+
+          {/* Secondary Actions: Report Error & Share */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onOpenReport(center);
+              }}
+              className="min-h-[42px] rounded-xl bg-[#ffedd5] hover:bg-[#fed7aa] active:bg-[#fdba74] text-[#9a3412] border border-[#fdba74] font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-98 shadow-2xs"
+              title="گزارش خطا یا تغییر مشخصات مرکز"
+            >
+              <AlertCircle className="w-4 h-4 text-[#ea580c] shrink-0" />
+              <span>گزارش خطا</span>
+            </button>
 
             <button
+              type="button"
               onClick={handleShare}
               className="min-h-[42px] rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center justify-center gap-1.5 transition"
             >
@@ -279,18 +294,14 @@ export const CenterDetailModal: React.FC<CenterDetailModalProps> = ({
             </button>
           </div>
 
-          {/* Eye-catching Pastel Orange Report Change Button */}
+          {/* Bottom Back / Close Button */}
           <button
             type="button"
-            onClick={() => {
-              onClose();
-              onOpenReport(center);
-            }}
-            className="w-full min-h-[46px] rounded-2xl bg-[#ffedd5] hover:bg-[#fed7aa] active:bg-[#fdba74] text-[#9a3412] border-2 border-[#fdba74] font-extrabold text-xs flex items-center justify-center gap-2 transition-all active:scale-98 shadow-sm"
-            title="گزارش خطای تلفن یا تغییر آدرس"
+            onClick={onClose}
+            className="w-full min-h-[46px] rounded-2xl bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 font-extrabold text-xs flex items-center justify-center gap-2 transition active:scale-98 border border-slate-200"
           >
-            <AlertCircle className="w-4 h-4 text-[#ea580c] shrink-0" />
-            <span>گزارش تغییر یا مغایرت اطلاعات مرکز</span>
+            <X className="w-4 h-4 text-slate-500" />
+            <span>بستن و بازگشت به لیست مراکز</span>
           </button>
         </div>
       </div>

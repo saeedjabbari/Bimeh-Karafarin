@@ -364,12 +364,17 @@ export default function App() {
     setVisibleLimit(10);
     if (newQuery.trim().length > 0) {
       setActiveTab((prev) => (prev !== 'centers' ? 'centers' : prev));
+      // Automatically switch to "همه مراکز" so search spans all categories
+      setSelectedType('');
     }
   }, []);
 
   const handleSearchFocus = useCallback(() => {
     setActiveTab((prev) => (prev !== 'centers' ? 'centers' : prev));
-  }, []);
+    if (query.trim().length > 0) {
+      setSelectedType('');
+    }
+  }, [query]);
 
   const handleSelectType = useCallback((t: string) => {
     React.startTransition(() => {
