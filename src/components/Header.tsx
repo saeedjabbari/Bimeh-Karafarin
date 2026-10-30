@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Search, X, SlidersHorizontal, Download, Moon, ShieldCheck, MapPin, LayoutGrid, Sparkles } from 'lucide-react';
 import { toFa } from '../utils/persian';
+import { getCategoryItem } from '../constants/categories';
 
 interface HeaderProps {
   query: string;
@@ -56,6 +57,12 @@ export const Header: React.FC<HeaderProps> = React.memo(({
   const totalCount = useMemo(() => {
     return Object.values(typeCounts).reduce((a, b) => a + b, 0);
   }, [typeCounts]);
+
+  const activeCategoryItem = useMemo(() => {
+    return selectedType ? getCategoryItem(selectedType) : null;
+  }, [selectedType]);
+
+  const ActiveCategoryIcon = activeCategoryItem?.icon || Sparkles;
 
   return (
     <header className="sticky top-0 z-30 bg-[#0a4c9a] text-white shadow-md">
@@ -188,19 +195,19 @@ export const Header: React.FC<HeaderProps> = React.memo(({
             </span>
           </button>
 
-          {/* دوم: دکمه «فیلتر تخصص» در سمت چپِ دکمه همه */}
+          {/* دوم: دکمه «فیلتر تخصص» در سمت چپِ دکمه همه (با رنگ اختصاصی کارت تخصص انتخاب‌شده) */}
           <button
             type="button"
             onClick={onOpenCategoryFilter}
-            className={`flex-1 flex items-center justify-between gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all select-none active:scale-95 shadow-sm ${
-              selectedType
-                ? 'bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 text-white ring-2 ring-white/70 shadow-md'
+            className={`flex-1 flex items-center justify-between gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition-all duration-200 select-none active:scale-95 shadow-sm ${
+              activeCategoryItem
+                ? `bg-gradient-to-r ${activeCategoryItem.gradient} text-white ring-2 ring-white/80 shadow-md`
                 : 'bg-gradient-to-r from-teal-400 via-emerald-400 to-cyan-400 hover:from-teal-300 hover:to-cyan-300 text-slate-950 shadow-md'
             }`}
             title="مشاهده و انتخاب تخصص‌ها"
           >
             <div className="flex items-center gap-1.5 truncate">
-              <Sparkles className="w-3.5 h-3.5 shrink-0 text-inherit animate-pulse" />
+              <ActiveCategoryIcon className="w-3.5 h-3.5 shrink-0 text-inherit" />
               <span className="truncate">
                 {selectedType ? `تخصص: ${selectedType}` : 'فیلتر تخصص‌ها'}
               </span>
