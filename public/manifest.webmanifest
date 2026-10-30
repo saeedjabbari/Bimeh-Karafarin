@@ -1,15 +1,27 @@
 {
+  "id": "ir.karafarin.urmiaclinic",
   "name": "مراکز درمانی طرف قرارداد بیمه کارآفرین",
-  "short_name": "مراکز کارآفرین",
-  "description": "فهرست مراکز درمانی طرف قرارداد بیمه کارآفرین در ارومیه",
-  "start_url": "./index.html",
+  "short_name": "کارآفرین",
+  "description": "سامانه جامع جستجو و مسیریابی مراکز درمانی طرف قرارداد بیمه کارآفرین در شهر ارومیه همراه با مراکز شبانه‌روزی و ثبت خسارت",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
   "orientation": "portrait",
   "lang": "fa",
   "dir": "rtl",
   "theme_color": "#0a4c9a",
   "background_color": "#f2f5fa",
+  "categories": [
+    "medical",
+    "health",
+    "lifestyle"
+  ],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "icons/icon-192.png",
@@ -28,6 +40,48 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshots/screenshot-mobile.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "نمای موبایل اپلیکیشن مراکز درمانی کارآفرین"
+    },
+    {
+      "src": "screenshots/screenshot-desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "نمای دسکتاپ سامانه مراکز درمانی کارآفرین"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "مراکز درمانی شبانه‌روزی",
+      "short_name": "شبانه‌روزی",
+      "description": "مشاهده فوری تمام داروخانه‌ها و درمانگاه‌های ۲۴ ساعته",
+      "url": "./?filter=night",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "داروخانه‌های طرف قرارداد",
+      "short_name": "داروخانه‌ها",
+      "description": "فهرست داروخانه‌های ارومیه با تایید آنلاین نسخه",
+      "url": "./?filter=pharmacy",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }
