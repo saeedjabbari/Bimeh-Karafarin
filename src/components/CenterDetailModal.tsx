@@ -70,7 +70,9 @@ export const CenterDetailModal: React.FC<CenterDetailModalProps> = ({
   const Icon = meta.icon;
   const mapUrl = getGoogleMapUrl(center.name, center.address, center.pid);
 
-  const allPhones = [center.phone, ...(center.alt || [])].filter(Boolean);
+  // Only keep entries that are valid telephone numbers (contain at least 4 digits)
+  const allPhones = [center.phone, ...(center.alt || [])]
+    .filter((ph): ph is string => Boolean(ph && /\d{4,}/.test(ph.replace(/\D/g, ''))));
 
   const handleShare = async () => {
     const text = `${center.name}\n${center.address}\n${center.phone ? 'تلفن: ' + fmtPhone(center.phone) : ''}\nطرف قرارداد بیمه کارآفرین (اسپوتا)`;
